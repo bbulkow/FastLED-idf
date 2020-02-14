@@ -1,6 +1,8 @@
 #ifndef __INC_PLATFORMS_H
 #define __INC_PLATFORMS_H
 
+#define ESP32
+
 #include "FastLED.h"
 
 #include "fastled_config.h"
