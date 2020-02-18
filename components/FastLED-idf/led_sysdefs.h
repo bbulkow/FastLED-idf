@@ -61,6 +61,7 @@
 #include <Arduino.h>
 #endif
 
-#define CLKS_PER_US (F_CPU/1000000)
+// F_CPU is almost certainly not defined BB
+//#define CLKS_PER_US (F_CPU/1000000)
 
 #endif

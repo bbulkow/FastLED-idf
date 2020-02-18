@@ -452,11 +452,20 @@ public:
 
     CHSVPalette16( const CHSVPalette16& rhs)
     {
-        memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
+        for (int i=0;i<16;i++) {
+            entries[i] = rhs.entries[i];
+        }
+        // GCC8+ complains
+        //memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
     }
     CHSVPalette16& operator=( const CHSVPalette16& rhs)
     {
-        memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
+        // BB
+        for (int i=0;i<16;i++) {
+            entries[i] = rhs.entries[i];
+        }
+        // GCC8+ complains
+        //memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
         return *this;
     }
 
@@ -555,11 +564,19 @@ public:
 
     CHSVPalette256( const CHSVPalette256& rhs)
     {
-        memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
+        for (int i=0;i<256;i++) {
+            entries[i] = rhs.entries[i];
+        }
+        // GCC8 complains
+        //memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
     }
     CHSVPalette256& operator=( const CHSVPalette256& rhs)
     {
-        memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
+        for (int i=0;i<256;i++) {
+            entries[i] = rhs.entries[i];
+        }
+        // GCC complains
+        //memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
         return *this;
     }
 
@@ -660,20 +677,33 @@ public:
 
     CRGBPalette16( const CRGBPalette16& rhs)
     {
-        memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
+        for (int i=0;i<16;i++) {
+            entries[i] = rhs.entries[i];
+        }
+        // GCC complains class-memaccess
+        //memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
     }
     CRGBPalette16( const CRGB rhs[16])
     {
-        memmove8( &(entries[0]), &(rhs[0]), sizeof( entries));
+        for (int i=0;i<16;i++) {
+            entries[i] = rhs[i];
+        }
+        //memmove8( &(entries[0]), &(rhs[0]), sizeof( entries));
     }
     CRGBPalette16& operator=( const CRGBPalette16& rhs)
     {
-        memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
+        for (int i=0;i<16;i++) {
+            entries[i] = rhs.entries[i];
+        }
+        //memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
         return *this;
     }
     CRGBPalette16& operator=( const CRGB rhs[16])
     {
-        memmove8( &(entries[0]), &(rhs[0]), sizeof( entries));
+        for (int i=0;i<16;i++) {
+            entries[i] = rhs[i];
+        }
+        // memmove8( &(entries[0]), &(rhs[0]), sizeof( entries));
         return *this;
     }
 
@@ -928,11 +958,18 @@ public:
     
     CHSVPalette32( const CHSVPalette32& rhs)
     {
-        memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
+        for (int i=0;i<32;i++){
+            entries[i] = rhs.entries[i];
+        }
+        // GCC complains BB
+       //memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
     }
     CHSVPalette32& operator=( const CHSVPalette32& rhs)
     {
-        memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
+        for (int i=0;i<32;i++) {
+            entries[i] = rhs.entries[i];
+        }
+        //memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
         return *this;
     }
     
@@ -1034,20 +1071,32 @@ public:
     
     CRGBPalette32( const CRGBPalette32& rhs)
     {
-        memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
+        for (int i=0;i<32;i++) {
+            entries[i] = rhs.entries[i];
+        }
+        //memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
     }
     CRGBPalette32( const CRGB rhs[32])
     {
-        memmove8( &(entries[0]), &(rhs[0]), sizeof( entries));
+        for (int i=0;i<32;i++) {
+            entries[i] = rhs[i];
+        }
+        //memmove8( &(entries[0]), &(rhs[0]), sizeof( entries));
     }
     CRGBPalette32& operator=( const CRGBPalette32& rhs)
     {
-        memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
+        for (int i=0;i<32;i++) {
+            entries[i] = rhs.entries[i];
+        }
+        //memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
         return *this;
     }
     CRGBPalette32& operator=( const CRGB rhs[32])
-    {
-        memmove8( &(entries[0]), &(rhs[0]), sizeof( entries));
+    {   
+        for (int i=0;i<32;i++) {
+            entries[i] = rhs[i];
+        }
+        //memmove8( &(entries[0]), &(rhs[0]), sizeof( entries));
         return *this;
     }
     
@@ -1322,20 +1371,32 @@ public:
 
     CRGBPalette256( const CRGBPalette256& rhs)
     {
-        memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
+        for (int i=0;i<256;i++) {
+            entries[i] = rhs.entries[i];
+        }
+        //memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
     }
     CRGBPalette256( const CRGB rhs[256])
     {
-        memmove8( &(entries[0]), &(rhs[0]), sizeof( entries));
+        for (int i=0;i<256;i++) {
+            entries[i] = rhs[i];
+        }
+        //memmove8( &(entries[0]), &(rhs[0]), sizeof( entries));
     }
     CRGBPalette256& operator=( const CRGBPalette256& rhs)
     {
-        memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
+        for (int i=0;i<256;i++) {
+            entries[i] = rhs.entries[i];
+        }
+        //memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
         return *this;
     }
     CRGBPalette256& operator=( const CRGB rhs[256])
     {
-        memmove8( &(entries[0]), &(rhs[0]), sizeof( entries));
+        for (int i=0;i<256;i++) {
+            entries[i] = rhs[i];
+        }
+        //memmove8( &(entries[0]), &(rhs[0]), sizeof( entries));
         return *this;
     }
 

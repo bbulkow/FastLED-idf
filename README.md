@@ -137,3 +137,158 @@ will finally get built, then you'll be left with only your errors.
 
 Building without `-j` parallelism would be nice, but I haven't found a way to do that. And, it would be slow.
 
+## micros
+
+Defined in arduino, maps to esp_timer_get_time() . There is an implementation of this in esp32-hal-misc.c, but 
+
+no definition, because you are meant to supply a function that is defined by Arduino.
+
+I have defined these functions in esp32-hal.h out of a lack of other places to put them.
+And, wouldn't it be better to use defines for these instead of functions???
+
+## port access for GPIO banging
+
+The FastLED code is fast because it doesn't call digital read and digital write, it instead grabs the ports and ors directly into them.
+This is done with `digitalPinToBitMask` and `digitalPinToPort`. Once you have the port, and you have the mask, bang, you can
+go to town.
+
+The esp-idf code supports the usual set of function calls to bang bits, and they include if statements, math, and a huge check
+to see if your pin number is right, inside every freaking inner loop. No wonder why a sane person would circumvent it.
+However, the ESP32 is also running at 240Mhz instead of 16Mhz, so it probably doesn't matter.
+
+Looking at the eshkrab FastLED port, it appears that person just pulled in most of the
+registers, and has run with it.
+
+HOWEVER, what's more interesting is the more recent FastLED code has an implementation of everything
+correctly under platforms///fastpin_esp32.h. There's a template there with all the right mojo.
+In a q and a section, it says that the PIN class is unused these days, and only FastPin is used.
+FastPin still uses 'digitalPinToPort', but has a #define in case those functions don't exist.
+
+The following github issue is instructive. https://github.com/FastLED/FastLED/issues/766
+
+It in fact says that the FASTLED_NO_PINMAP is precisely to be used in ports where there is no Arduino.
+That's me! So let's go set that and move along to figuring out how to get the FastPins working.
+
+## GPIO defined not found
+
+Best current guess. There is an arduino add-only library called "Arduino_GPIO", which has the same
+basic structure, and that's what's being used to gain access to the core register pointers and such.
+
+Essentially, this has to be re-written, because GPIO in that way doesn't exist.
+
+A few words about bitbanging here.
+
+There appears to be 4 32-bit values. They are w1tc ( clear ) and w1ts ( set ). When you want
+to write a 1, you set the correct values in w1ts, and when you want to clear, you set 1 to the
+values you want to clear in w1tc. Since there are 40 pins, there are two pairs of these.
+
+Explained here: https://esp32.com/viewtopic.php?t=1987 . And noted that perhaps you can only
+set one value at a time, and it makes the system atomic, where if you try to read, mask, write
+in a RTOS / multicore case, you'll often hurt yourself. No taking spinlocks in this case, which
+is great.
+
+There are also two "out" values. Oddly, there are both the GPIO.out, and GPIO.out.value. Unclear why.
+Reading the code naively, it looks like almost a bug. How could it be that the high pins
+have such a different name?
+
+Another intereting post on the topic: https://www.esp32.com/viewtopic.php?t=1595 . This points
+to raw speeds being in the 4mhz / 10mhz range, and says "use the RMT interface". It also
+has questions about whether you need to or or set. The consensus seems to be that you don't need
+to do that, and you shoudn't need to disable interrupts either, because these actions are atomic.
+
+Now, let's figure out the best way to adapt those to ESP-IDF.
+
+https://docs.espressif.com/projects/esp-idf/en/v4.0/api-reference/peripherals/gpio.html
+
+IT looks like there are defines for these values in ESP-IDF, so you really just need to 
+find the places these are defined and change the names to GPIO_OUT_W1TS_REG , and GPIO_OUT_REG
+etc etc
+
+soc/gpio_reg.h --- examples/peripherals/spi_slave
+or maybe just driver/gpio.h?
+WRITE_PERI_REG(GPIO_OUT_W1TS_REG, 1 << GPIO_HANDSHAKE)
+
+Looks like if you grab "gpio.h", it'll include what you need.
+For full information, it was bugging me where this structure is. It's in:
+soc/esp32/include/soc/gpio_struct.h . Which I also think is pulled in
+with gpio.h, or more correctly driver/gpio.h as below.
+
+Hold up! It looks like driver/gpio.c uses the same exact GPIO. name. Is this a namespace or something?
+Should I just start including the same files gpio.c does?
+
+#include <esp_types.h>
+#include "esp_err.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/xtensa_api.h"
+#include "driver/gpio.h"
+#include "driver/rtc_io.h"
+#include "soc/soc.h"
+#include "soc/gpio_periph.h"
+#include "esp_log.h"
+#include "esp_ipc.h"
+
+--- let's start with
+#include <esp_types.h>
+#include "esp_err.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/xtensa_api.h"
+#include "driver/gpio.h"
+#include "soc/gpio_periph.h"
+
+Yay! 
+
+Note: what's up with registering the driver? I should, right? Make sure that's done in
+menuconfig? Doen't seem to be. There are no settings anywhere in the menuconfig regarding
+gpio. Should probably look at the examples to see if I have to enable the ISR or something.
+
+## using RMT vs I2S
+
+Note to self: There is a define in the platforms area that lets a person choose.
+
+## GCC 8 memcpy and memmove into complex structures
+
+/mnt/c/Users/bbulk/dev/esp/FastLED-idf/components/FastLED-idf/colorutils.h:455:69: error: 'void* memmove(void*, const void*, size_t)' writing to an object of type 'struct CHSV' with no trivial copy-assignment; use copy-assignment or copy-initialization instead [-Werror=class-memaccess]
+         memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
+
+Files involved are:
+FastLED.h
+bitswap.h
+controller.cpp
+colorutils.h 455
+
+( Note: bitswap.cpp is rather inscrutable, since it points to a page that no longer exists. It would
+be really nice to know what it is transposing, or shifting, AKA, what the actual function is intended
+to do, since the code itself is not readable without a roadmap. )
+
+The offending code is here:
+```
+    CHSVPalette16( const CHSVPalette16& rhs)
+    {
+        memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
+    }
+```
+
+and I think is an unnessary and unsafe optimization. It would be shocking on this processor, with GCC8+,
+that the memmove8 optimization is sane. This is a straight-up initialization, and the code should probably
+be simplified to do the simple thing.
+
+This particular warning can be removed in a single file through the following pattern:
+```
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wclass-memaccess"
+```
+https://stackoverflow.com/questions/3378560/how-to-disable-gcc-warnings-for-a-few-lines-of-code
+
+After looking a bit, it doesn't seem non-sensible to remove all the memmoves and turn them into
+loops. It's been done in other places of the code. Otherwise, one could say "IF GCC8" or something
+similar, because I bet it really does matter on smaller systems. Maybe even on this one.
+
+There is a menuconfig to turn off new warnings introduced from GCC6 to GCC8.
+
+The other thing is to cast these somehow to void.
+
+## Don't use C
+
+Had a main.c , and FastLED.h includes nothing but C++. Therefore, all the source files
+that include FastLED have to be using the C++ compiler, and ESP-IDF has the standard rules
+for using C for C and CPP for CPP because it's not like they are subsets or something.

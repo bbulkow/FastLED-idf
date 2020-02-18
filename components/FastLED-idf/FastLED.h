@@ -6,6 +6,9 @@
 
 // BB hack
 #define ESP32
+#define FASTLED_NO_PINMAP
+
+#include "esp32-hal.h"
 
 #if (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 4)
 #define FASTLED_HAS_PRAGMA_MESSAGE

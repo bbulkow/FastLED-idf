@@ -103,7 +103,7 @@ extern "C" {
 #include "driver/gpio.h"
 #include "driver/periph_ctrl.h"
 #include "rom/lldesc.h"
-#include "esp_intr.h"
+#include "esp_intr_alloc.h"
 #include "esp_log.h"
     
 #ifdef __cplusplus

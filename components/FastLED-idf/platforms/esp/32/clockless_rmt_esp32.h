@@ -92,7 +92,7 @@ extern "C" {
 #endif
 
 #include "esp32-hal.h"
-#include "esp_intr.h"
+#include "esp_intr_alloc.h"
 #include "driver/gpio.h"
 #include "driver/rmt.h"
 #include "driver/periph_ctrl.h"

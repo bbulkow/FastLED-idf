@@ -10,7 +10,9 @@ set(srcs
 		"noise.cpp"
 		"platforms.cpp"
 		"power_mgt.cpp"
-		"wiring.cpp")
+		"wiring.cpp"
+		"hal/esp32-hal-misc.c"
+		)
 
 # everything needs the ESP32 flag, not sure why this won't work
 # going to hack by adding the ESP32 define in the h file
