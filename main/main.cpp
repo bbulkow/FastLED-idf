@@ -146,7 +146,7 @@ void blinkLeds_chase(void *pvParameters) {
 	    uint64_t start = esp_timer_get_time();
 	    FastLED.show();
 	    uint64_t end = esp_timer_get_time();
-	    printf("Show Time: %"PRIu64"\n",end-start);
+	    printf("Show Time: %" PRIu64 "\n",end-start);
 	    delay(200);
 	 };
 
