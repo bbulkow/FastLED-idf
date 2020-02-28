@@ -1,5 +1,11 @@
 # FastLED-idf
 
+# TL;DR
+
+This port of FastLED 3.3 runs under the ESP-IDF development environment. Enjoy.
+
+# Why we need FastLED-idf
+
 The ESP32 is a pretty great package. It has two
 cores, 240Mhz speed, low power mode, wifi and bluetooth, 
 and can be had in pre-built modules at prices between $24 ( Adafruit, Sparkfun ), $10 (Espressif-manufactured boards through Mauser and Digikey),
@@ -46,7 +52,7 @@ users of the RMT driver within ESP-IDF.
 Essentially, if you have the Driver turned on, you shouldn't use the direct mode,
 and if you want to use the direct mode, you should turn off the driver.
 
-TODO: insert specific information about turning these things on and off in `menuconfig`
+No extra commands in `menuconfig` seem necessary.
 
 # A bit about esp-idf
 
@@ -74,15 +80,13 @@ going in and doing surgery.
 
 ## The other FastLED-idf
 
-It appears that set of code was an earlier version of FastLED, 
-and probably only still works with ESP-IDF 3.x. There was a major
-update to ESP-IDF, a new build system, lots of submodule updates,
-cleaned up headers and names, which seem to be all for the better -
+It appears that set of code was an earlier version of FastLED, and probably only still 
+works with ESP-IDF 3.x. There was a major update to ESP-IDF, a new build system, 
+lots of submodule updates, cleaned up headers and names, which seem to be all for the better -
 but with lots of breaking changes.
 
-Thus, updating both, and using eskrab's version as a template, 
-I attempt to have a running version of FastLED with the ESP-IDF
-4.0 development environment
+Thus, updating both, and using eskrab's version as a template, I attempt to have a 
+running version of FastLED with the ESP-IDF 4.0 development environment
 
 ## ESP-IDF already has a LED library
 
@@ -110,7 +114,7 @@ as possible.
 ## FastLED
 
 Drop this into the FastLED-idf directory. Now, it might have been cleaner to create a subdirectory
-with nothing but the FastLED-sourced code, this could be an organizational change the future.
+with nothing but the FastLED-source code, this could be an organizational change the future.
 
 ## Arduino-esp32
 
@@ -125,7 +129,7 @@ its platform. This should be doable in the CMakeLists.txt, but when I followed t
 I got an error about the command not being scriptable. Thus, to move things along, I define-ed
 at the top of the FastLED.h file.
 
-Someone please fix that
+Someone please fix that!
 
 ## lots of make threads makes dev hard
 
@@ -139,29 +143,31 @@ Building without `-j` parallelism would be nice, but I haven't found a way to do
 
 ## micros
 
-Defined in arduino, maps to esp_timer_get_time() . There is an implementation of this in esp32-hal-misc.c, but 
-
-no definition, because you are meant to supply a function that is defined by Arduino.
+Defined in arduino, maps to esp_timer_get_time() . There is an implementation of this in esp32-hal-misc.c, but no definition, because you are meant to supply a function that is defined by Arduino.
 
 I have defined these functions in esp32-hal.h out of a lack of other places to put them.
 And, wouldn't it be better to use defines for these instead of functions???
 
 ## port access for GPIO banging
 
-The FastLED code is fast because it doesn't call digital read and digital write, it instead grabs the ports and ors directly into them.
-This is done with `digitalPinToBitMask` and `digitalPinToPort`. Once you have the port, and you have the mask, bang, you can
-go to town.
+The FastLED code is fast because it doesn't call digital read and digital write, it instead 
+grabs the ports and ors directly into them.
+This is done with `digitalPinToBitMask` and `digitalPinToPort`. Once you have the port, 
+and you have the mask, bang, you can go to town.
 
-The esp-idf code supports the usual set of function calls to bang bits, and they include if statements, math, and a huge check
-to see if your pin number is right, inside every freaking inner loop. No wonder why a sane person would circumvent it.
-However, the ESP32 is also running at 240Mhz instead of 16Mhz, so it probably doesn't matter.
+The esp-idf code supports the usual set of function calls to bang bits, and they include if 
+statements, math, and a huge check
+to see if your pin number is right, inside every freaking inner loop. 
+No wonder why a sane person would circumvent it.
+However, the ESP32 is also running at 240Mhz instead of 16Mhz, so performance optimizations
+will certainly matter less.
 
 Looking at the eshkrab FastLED port, it appears that person just pulled in most of the
 registers, and has run with it.
 
 HOWEVER, what's more interesting is the more recent FastLED code has an implementation of everything
 correctly under platforms///fastpin_esp32.h. There's a template there with all the right mojo.
-In a q and a section, it says that the PIN class is unused these days, and only FastPin is used.
+In a q-and-a section, it says that the PIN class is unused these days, and only FastPin is used.
 FastPin still uses 'digitalPinToPort', but has a #define in case those functions don't exist.
 
 The following github issue is instructive. https://github.com/FastLED/FastLED/issues/766
@@ -213,9 +219,10 @@ For full information, it was bugging me where this structure is. It's in:
 soc/esp32/include/soc/gpio_struct.h . Which I also think is pulled in
 with gpio.h, or more correctly driver/gpio.h as below.
 
-Hold up! It looks like driver/gpio.c uses the same exact GPIO. name. Is this a namespace or something?
+Hold up! It looks like `driver/gpio.c` uses the same exact GPIO. name. Is this a namespace or something?
 Should I just start including the same files gpio.c does?
 
+```
 #include <esp_types.h>
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
@@ -226,14 +233,18 @@ Should I just start including the same files gpio.c does?
 #include "soc/gpio_periph.h"
 #include "esp_log.h"
 #include "esp_ipc.h"
+```
 
---- let's start with
+Let's start with:
+
+```
 #include <esp_types.h>
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/xtensa_api.h"
 #include "driver/gpio.h"
 #include "soc/gpio_periph.h"
+```
 
 Yay! 
 
@@ -247,14 +258,18 @@ Note to self: There is a define in the platforms area that lets a person choose.
 
 ## GCC 8 memcpy and memmove into complex structures
 
+```
 /mnt/c/Users/bbulk/dev/esp/FastLED-idf/components/FastLED-idf/colorutils.h:455:69: error: 'void* memmove(void*, const void*, size_t)' writing to an object of type 'struct CHSV' with no trivial copy-assignment; use copy-assignment or copy-initialization instead [-Werror=class-memaccess]
          memmove8( &(entries[0]), &(rhs.entries[0]), sizeof( entries));
+```
 
 Files involved are:
+```
 FastLED.h
 bitswap.h
 controller.cpp
 colorutils.h 455
+```
 
 ( Note: bitswap.cpp is rather inscrutable, since it points to a page that no longer exists. It would
 be really nice to know what it is transposing, or shifting, AKA, what the actual function is intended
@@ -277,18 +292,24 @@ This particular warning can be removed in a single file through the following pa
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wclass-memaccess"
 ```
+
 https://stackoverflow.com/questions/3378560/how-to-disable-gcc-warnings-for-a-few-lines-of-code
 
-After looking a bit, it doesn't seem non-sensible to remove all the memmoves and turn them into
+After looking a bit, it doesn't seem unreasonable to remove all the memmoves and turn them into
 loops. It's been done in other places of the code. Otherwise, one could say "IF GCC8" or something
 similar, because I bet it really does matter on smaller systems. Maybe even on this one.
 
 There is a menuconfig to turn off new warnings introduced from GCC6 to GCC8.
 
-The other thing is to cast these somehow to void.
+The other thing is to cast these to void, but ewww. Anyone who uses C++ on an embedded system
+should go whole hog.
 
 ## Don't use C
 
 Had a main.c , and FastLED.h includes nothing but C++. Therefore, all the source files
 that include FastLED have to be using the C++ compiler, and ESP-IDF has the standard rules
 for using C for C and CPP for CPP because it's not like they are subsets or something.
+
+## message about no hardware SPI pins defined
+
+Let's track down whether they are using or are not? And what about the RMI stuff?
