@@ -123,6 +123,17 @@ with nothing but the FastLED-source code, this could be an organizational change
 You need a few of the HAL files. Please update these in the subdirectory hal. Don't forget to close
 the pod bay doors.
 
+# Timing
+
+On an ESP32 running at 240Mhz, I was able to time 40 pixels at 1.2 milliseconds. I timed showLeds()
+at 3.0 milliseconds at 100 LEDs.
+
+If 30 milliseconds makes 30fps, then you should be able to do 1000 pixels on one of the two cores, 
+and still, potentially, have the ability to do some extra work, because you've got the other CPU.
+
+I have not determined if this is using the RMT interface, which would mean we could 
+use an async internal interface. The timing, however, is very solid.
+
 # Use notes
 
 What I like about using FreeRTOS and a more interesting development environment is
