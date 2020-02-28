@@ -4,12 +4,14 @@
 
 This port of FastLED 3.3 runs under the ESP-IDF development environment. Enjoy.
 
+Pull requests welcome.
+
 # Why we need FastLED-idf
 
-The ESP32 is a pretty great package. It has two
-cores, 240Mhz speed, low power mode, wifi and bluetooth, 
-and can be had in pre-built modules at prices between $24 ( Adafruit, Sparkfun ), $10 (Espressif-manufactured boards through Mauser and Digikey),
-or 'knock off' boards for $4 from AliExpress.
+The ESP32 is a pretty great SOC package. It has two
+cores, 240Mhz speed, low power mode, wifi and bluetooth, and can be had in pre-built 
+modules at prices between $24 ( Adafruit, Sparkfun ), $10 (Espressif-manufactured boards through 
+Mauser and Digikey), or 'knock off' boards for $4 from AliExpress.
 
 If you're going to program this board, you might use Arduino.
 Although I love the concept of Arduino - and the amazing amount
@@ -118,7 +120,20 @@ with nothing but the FastLED-source code, this could be an organizational change
 
 ## Arduino-esp32
 
-You need a few of the HAL files. Please update these in the subdirectory hal.
+You need a few of the HAL files. Please update these in the subdirectory hal. Don't forget to close
+the pod bay doors.
+
+# Use notes
+
+What I like about using FreeRTOS and a more interesting development environment is
+you should be able to use more of the CPU for other things. Essentially, you should
+be able to have the RMT system feeding itself, which then allows the main CPU
+to be updating the arrays of colors, and multiple channels to be doing the right
+thing all at the same time.
+
+However, really being multi-core would mean having a locking semantic around the color
+array, or double buffering. FastLED doesn't seem to really think that way,
+rightfully so.
 
 # Gotchas and Todos
 
@@ -133,10 +148,14 @@ Someone please fix that!
 
 ## lots of make threads makes dev hard
 
-It seems `idf.py build` uses cores+2. That means when you're actually building your component, you're in line with
-all the other esp idf components, and you'll see a lot of stuff compile then finally what you want.
+This is just a whine about esp-idf.
 
-The best way is to do a few builds - which will all fail, and the other components without errors ( the ones in esp-idf )
+It seems `idf.py build` uses cores+2. That means when you're actually building your component, 
+you're compiling all the other esp idf components, and you'll see a lot of stuff compile 
+then finally what you want.
+
+The best way is to do a few builds - which will all fail, and the other components 
+without errors ( the ones in esp-idf )
 will finally get built, then you'll be left with only your errors.
 
 Building without `-j` parallelism would be nice, but I haven't found a way to do that. And, it would be slow.
