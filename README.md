@@ -2,16 +2,16 @@
 
 # TL;DR
 
-This port of FastLED 3.3 runs under the ESP-IDF development environment. Enjoy.
+This port of FastLED 3.3 runs under the 4.0 ESP-IDF development environment. Enjoy.
 
 Pull requests welcome.
 
 # Why we need FastLED-idf
 
 The ESP32 is a pretty great SOC package. It has two
-cores, 240Mhz speed, low power mode, wifi and bluetooth, and can be had in pre-built 
+cores, 240Mhz speed, a meg of DRAM ( sorta ), low power mode, wifi and bluetooth, and can be had in pre-built 
 modules at prices between $24 ( Adafruit, Sparkfun ), $10 (Espressif-manufactured boards through 
-Mauser and Digikey), or 'knock off' boards for $4 from AliExpress.
+Mauser and Digikey), or 'knock off' boards for $4 from AliExpress as of 2020.
 
 If you're going to program this board, you might use Arduino.
 Although I love the concept of Arduino - and the amazing amount
@@ -20,15 +20,17 @@ environment is "funky", that is, it's not really C - about my first
 minute in the IDE, I managed to write a perfectly valid C preprocessor
 directive that's illegal in Arduino.
 
-Enter ESP-IDF, which is Espressif's RTOS. It's based on FreeRTOS,
+Enter ESP-IDF, which is Espressif's RTOS for this platform. It's based on FreeRTOS,
 but they had to fork it for multiple cores. It's based on FreeRTOS 9,
-but has some of the work done later backported.
+but has some of the work done later backported so it has a few of the FreeRTOS 10 functions, apparently.
+Development seems vibrant, and they use the stock GCC 8.0 compiler with no strange overlays.
 
 There are a TON of useful modules included with ESP-IDF. Notably,
 nghttp server, mdns, https servers, websockets, json, mqtt, etc etc.
 
 What I tend to do with embedded systems is blink LEDs! Sure, there's other
-fun stuff, but blinking LEDs is pretty good.
+fun stuff, but blinking LEDs is pretty good. The included `ledc` module in ESP-IDF is only for
+changing the duty cycle and brightness, it doesn't control color-controlled LEDs like the WS8211.
 
 Thus, we need FastLED.
 
@@ -54,7 +56,39 @@ users of the RMT driver within ESP-IDF.
 Essentially, if you have the Driver turned on, you shouldn't use the direct mode,
 and if you want to use the direct mode, you should turn off the driver.
 
+I have not yet validated if this library correctly uses RMT.
+
 No extra commands in `menuconfig` seem necessary.
+
+# async mode
+
+The right way to use a system like this is with some form of async mode, where the CPU
+is loading and managing the RMT buffer(s), but then goes off to do other works while that's
+happening. This would allow much better multi-channel work, because the CPU could fill 
+one channel, then go off and fill the next channel, etc. For that, you'd have to use
+the LastLED async interfaces.
+
+Why do you want to use multiple channels? Apply the FadeCandy algos. The reason the fadecandy
+is teh awesome is it applies "temporal anti-aliasing", which is to say, it always drives the 
+LEDs at full speed, and when it's trying to display a certain color, it actually displays a blend
+of other colors. This allows far more resolution than the underlying LED hardware might be
+capable of.
+
+However, it means you need to drive lots of bytes all the time. The fadecandy appears to drive
+400Khz across its 64-led maximum strings _all the time_. If we did that with this system, one core
+would drive one string. Sure, we've got two cores, but that's not very fun.
+
+With an async system, you can drive as many strings as you want in parallel, and let RMT loose.
+There are only 8 RMT channels, so you can at least get up to the capacity of a single FadeCandy.
+
+Still - imagine the possibilities. If you're not applying temporal dithering, you can at least have
+a ton more parallel strings. Instead of being limited to about 1k LEDs saturating an entire core
+at 30fps with no "temporal dithering", you might be able to get upward of 4k or 8k ( to be measured ).
+
+In order to do this in the happiest way, you'd like to use FastLED's coordination systems. You'd
+like an async call to complete using a C feature, to take mutexes because it might be interrupting
+with the scheduler, or to put a message on one of the message queues for service. Doing all
+that would be a major expansion of the FastLED interface and would diverge from the "published spec".
 
 # A bit about esp-idf
 
@@ -92,12 +126,13 @@ running version of FastLED with the ESP-IDF 4.0 development environment
 
 ## ESP-IDF already has a LED library
 
-Yes, I saw it once, I'm having trouble finding it now. It does
-really cool timing tricks, but it's not got all the fancy-fancy
-of the FastLED library, which has a better designed and time tested 
-programming interface. I reached out on the Espressif forum to the
-company and suggested they support FastLED ( why not? it's open source! )
-and they told me to get lost.
+Not really. There is an included 'ledc' library, which
+simply changes the duty cycle on a pin using the RMT interface.
+It doesn't do pixel color control. It can be an example of using
+the RMT system, that's it.
+
+I did reach out to Espressif. I think they should include or have a FastLED port.
+In their forums, they said they don't intend to do anything like that.
 
 # Updating
 
@@ -115,7 +150,7 @@ as possible.
 
 ## FastLED
 
-Drop this into the FastLED-idf directory. Now, it might have been cleaner to create a subdirectory
+Drop this into the components/FastLED-idf directory. Now, it might have been cleaner to create a subdirectory
 with nothing but the FastLED-source code, this could be an organizational change the future.
 
 ## Arduino-esp32
@@ -123,7 +158,7 @@ with nothing but the FastLED-source code, this could be an organizational change
 You need a few of the HAL files. Please update these in the subdirectory hal. Don't forget to close
 the pod bay doors.
 
-# Timing
+# Timing and speed
 
 On an ESP32 running at 240Mhz, I was able to time 40 pixels at 1.2 milliseconds. I timed showLeds()
 at 3.0 milliseconds at 100 LEDs.
@@ -205,7 +240,7 @@ The following github issue is instructive. https://github.com/FastLED/FastLED/is
 It in fact says that the FASTLED_NO_PINMAP is precisely to be used in ports where there is no Arduino.
 That's me! So let's go set that and move along to figuring out how to get the FastPins working.
 
-## GPIO defined not found
+## GPIO defined not found - get the hal
 
 Best current guess. There is an arduino add-only library called "Arduino_GPIO", which has the same
 basic structure, and that's what's being used to gain access to the core register pointers and such.
@@ -242,7 +277,9 @@ etc etc
 
 soc/gpio_reg.h --- examples/peripherals/spi_slave
 or maybe just driver/gpio.h?
+```
 WRITE_PERI_REG(GPIO_OUT_W1TS_REG, 1 << GPIO_HANDSHAKE)
+```
 
 Looks like if you grab "gpio.h", it'll include what you need.
 For full information, it was bugging me where this structure is. It's in:
@@ -298,7 +335,7 @@ Files involved are:
 FastLED.h
 bitswap.h
 controller.cpp
-colorutils.h 455
+colorutils.h 
 ```
 
 ( Note: bitswap.cpp is rather inscrutable, since it points to a page that no longer exists. It would
@@ -342,4 +379,6 @@ for using C for C and CPP for CPP because it's not like they are subsets or some
 
 ## message about no hardware SPI pins defined
 
-Let's track down whether they are using or are not? And what about the RMI stuff?
+This appears widely known to be a warning on ESP32 to go look and see if the RMT system
+is getting included. Do need to put in some printfs to see if RMT is enabled,
+and see if the async system works, which would be the cool part of RMT.
