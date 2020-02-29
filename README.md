@@ -126,12 +126,13 @@ running version of FastLED with the ESP-IDF 4.0 development environment
 
 ## ESP-IDF already has a LED library
 
-Yes, I saw it once, I'm having trouble finding it now. It does
-really cool timing tricks, but it's not got all the fancy-fancy
-of the FastLED library, which has a better designed and time tested 
-programming interface. I reached out on the Espressif forum to the
-company and suggested they support FastLED ( why not? it's open source! )
-and they told me to get lost.
+Not really. There is an included 'ledc' library, which
+simply changes the duty cycle on a pin using the RMT interface.
+It doesn't do pixel color control. It can be an example of using
+the RMT system, that's it.
+
+I did reach out to Espressif. I think they should include or have a FastLED port.
+In their forums, they said they don't intend to do anything like that.
 
 # Updating
 
@@ -149,7 +150,7 @@ as possible.
 
 ## FastLED
 
-Drop this into the FastLED-idf directory. Now, it might have been cleaner to create a subdirectory
+Drop this into the components/FastLED-idf directory. Now, it might have been cleaner to create a subdirectory
 with nothing but the FastLED-source code, this could be an organizational change the future.
 
 ## Arduino-esp32
@@ -157,7 +158,7 @@ with nothing but the FastLED-source code, this could be an organizational change
 You need a few of the HAL files. Please update these in the subdirectory hal. Don't forget to close
 the pod bay doors.
 
-# Timing
+# Timing and speed
 
 On an ESP32 running at 240Mhz, I was able to time 40 pixels at 1.2 milliseconds. I timed showLeds()
 at 3.0 milliseconds at 100 LEDs.
@@ -239,7 +240,7 @@ The following github issue is instructive. https://github.com/FastLED/FastLED/is
 It in fact says that the FASTLED_NO_PINMAP is precisely to be used in ports where there is no Arduino.
 That's me! So let's go set that and move along to figuring out how to get the FastPins working.
 
-## GPIO defined not found
+## GPIO defined not found - get the hal
 
 Best current guess. There is an arduino add-only library called "Arduino_GPIO", which has the same
 basic structure, and that's what's being used to gain access to the core register pointers and such.
@@ -276,7 +277,9 @@ etc etc
 
 soc/gpio_reg.h --- examples/peripherals/spi_slave
 or maybe just driver/gpio.h?
+```
 WRITE_PERI_REG(GPIO_OUT_W1TS_REG, 1 << GPIO_HANDSHAKE)
+```
 
 Looks like if you grab "gpio.h", it'll include what you need.
 For full information, it was bugging me where this structure is. It's in:
@@ -332,7 +335,7 @@ Files involved are:
 FastLED.h
 bitswap.h
 controller.cpp
-colorutils.h 455
+colorutils.h 
 ```
 
 ( Note: bitswap.cpp is rather inscrutable, since it points to a page that no longer exists. It would
@@ -376,4 +379,6 @@ for using C for C and CPP for CPP because it's not like they are subsets or some
 
 ## message about no hardware SPI pins defined
 
-Let's track down whether they are using or are not? And what about the RMI stuff?
+This appears widely known to be a warning on ESP32 to go look and see if the RMT system
+is getting included. Do need to put in some printfs to see if RMT is enabled,
+and see if the async system works, which would be the cool part of RMT.
