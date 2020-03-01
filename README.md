@@ -163,6 +163,10 @@ the pod bay doors.
 On an ESP32 running at 240Mhz, I was able to time 40 pixels at 1.2 milliseconds. I timed showLeds()
 at 3.0 milliseconds at 100 LEDs.
 
+However, if you use more than one controller ( see the THREADING document ),
+three different controllers each will do 100 LEDs in 3 milliseconds. I have tested
+this with 1, 3, and 6 controllers. They all take the same amount of time.
+
 If 30 milliseconds makes 30fps, then you should be able to do 1000 pixels on one of the two cores, 
 and still, potentially, have the ability to do some extra work, because you've got the other CPU.
 

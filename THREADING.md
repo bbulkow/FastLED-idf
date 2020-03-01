@@ -16,9 +16,12 @@ for this platform --- and it's a little weird.
 
 For this platform, when you do a showLeds(), it keeps track of the number
 of calls, and when you reach the same number of calls as the number of allocated
-controllers, it actually spins up all of them together.
+controllers, it actually spins up all of them together. I believe
+this is intended to work because showLeds() will call each
+of them in turn, so you use that.
 
-To say that's "peculiar" stretches the point. 
+I worry if you try to call the showLeds on individual controllers
+and hope the right thing happens.
 
 You'd prefer an interface called something like "flushLeds" which
 acts on all the known controllers, or takes the list of controllers
