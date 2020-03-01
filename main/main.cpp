@@ -158,5 +158,5 @@ void app_main() {
   printf(" set max power\n");
   FastLED.setMaxPowerInVoltsAndMilliamps(5,1000);
   printf("create task for led blinking\n");
-  xTaskCreatePinnedToCore(&blinkLeds_chase, "blinkLeds", 4000, NULL, 5, NULL, 0);
+  xTaskCreatePinnedToCore(&blinkLeds_simple, "blinkLeds", 4000, NULL, 5, NULL, 0);
 }
