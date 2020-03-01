@@ -181,6 +181,25 @@ However, really being multi-core would mean having a locking semantic around the
 array, or double buffering. FastLED doesn't seem to really think that way,
 rightfully so.
 
+# Liscening
+
+FastLED is MIT license.
+
+I intend my portions to be MIT license. AKA the don't sue me license.
+
+However, the Espressif HAL code is LGPL. Mostly, these are used as headers,
+not as code itself. There's very little of value there. If LGPL bothers
+you, I would propose a quick rewrite of those files, and submit a pull request
+that would be under MIT license.
+
+I am honestly not sure what happens to LGPL in this case. It's a component in an
+embedded system, which is morally a library, but it is clearly very statically
+linked.
+
+I don't intend to make any money off this, don't charge people, and do not intend
+the use for commercial art projects, so the use is safe for me. But don't say
+I didn't warn you.
+
 # Gotchas and Todos
 
 ## ESP32 define
