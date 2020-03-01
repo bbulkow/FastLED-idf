@@ -310,7 +310,7 @@ protected:
         gNumStarted++;
 
         // -- The last call to showPixels is the one responsible for doing
-        //    all of the actual worl
+        //    all of the actual work
         if (gNumStarted == gNumControllers) {
             gNext = 0;
 
@@ -508,7 +508,8 @@ protected:
     void IRAM_ATTR fillNext()
     {
         if (mPixels->has(1)) {
-            uint32_t t1 = __clock_cycles();
+            // bb compiler complains
+            //uint32_t t1 = __clock_cycles();
             
             uint32_t one_val = mOne.val;
             uint32_t zero_val = mZero.val;
@@ -554,34 +555,6 @@ protected:
         }   
     }
 
-    // NO LONGER USED
-    uint8_t IRAM_ATTR getNextByte() __attribute__ ((always_inline))
-    {
-        uint8_t byte;
-
-        // -- Cycle through the color channels
-        switch (mCurColor) {
-        case 0: 
-            byte = mPixels->loadAndScale0();
-            break;
-        case 1: 
-            byte = mPixels->loadAndScale1();
-            break;
-        case 2: 
-            byte = mPixels->loadAndScale2();
-            mPixels->advanceData();
-            mPixels->stepDithering();
-            break;
-        default:
-            // -- This is bad!
-            byte = 0;
-        }
-
-        mCurColor++;
-        if (mCurColor == NUM_COLOR_CHANNELS) mCurColor = 0;
-
-        return byte;
-    }
 
 
     // NO LONGER USED
@@ -622,7 +595,6 @@ protected:
             mCurColor++;
             if (mCurColor == NUM_COLOR_CHANNELS) mCurColor = 0;
         
-            // byteval = getNextByte();
             byteval <<= 24;
             // Shift bits out, MSB first, setting RMTMEM.chan[n].data32[x] to the 
             // rmt_item32_t value corresponding to the buffered bit value
