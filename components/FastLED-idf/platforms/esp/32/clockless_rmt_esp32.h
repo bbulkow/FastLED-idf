@@ -255,8 +255,12 @@ protected:
             // -- Apply the configuration
             rmt_config(&rmt_tx);
 
+            //Always install the rmt_driver. Changes in the rmt internals require this function call to allocate resources for the channel. If omitted a nullpointer exceptions ocurrs.
+            //see https://github.com/espressif/esp-idf/issues/4583
+            //see https://github.com/espressif/esp-idf/pull/4898
+            rmt_driver_install(rmt_channel_t(i), 0, 0);
             if (FASTLED_RMT_BUILTIN_DRIVER) {
-                rmt_driver_install(rmt_channel_t(i), 0, 0);
+                //rmt_driver_install(rmt_channel_t(i), 0, 0);
             } else {
                 // -- Set up the RMT to send 1 pixel of the pulse buffer and then
                 //    generate an interrupt. When we get this interrupt we
