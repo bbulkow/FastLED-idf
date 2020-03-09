@@ -32,7 +32,18 @@ What I tend to do with embedded systems is blink LEDs! Sure, there's other
 fun stuff, but blinking LEDs is pretty good. The included `ledc` module in ESP-IDF is only for
 changing the duty cycle and brightness, it doesn't control color-controlled LEDs like the WS8211.
 
-Thus, we need FastLED.
+Thus, we need FastLED
+
+# TL;DR about this repo
+
+As with any ESP-IDF project, there is a sdkconfig file. It contains things that might
+or might not be correct for your ESP32. I've checked in a version that runs at 240Mhz,
+runs both cores, uses 40Mhz 4MB DIO Flash, auto-selects the frequency of the clock, and
+only runs on Rev1 hardware, and has turned off things like memory poisoning.
+
+I've read scary stuff about Rev0 and GPIO. You have to insert a number of NOP statements
+between bangs of the pins. If you're using that version, you might want to look carefully
+into the issue.
 
 # Use of ESP32 hardware for 3 wire LEDs
 
@@ -48,15 +59,14 @@ channels.
 
 The FastLED ESP32 RMT use has two modes: one which uses the "driver", and
 one which doesn't, and claims to be more efficient due to when it's converting
-between LED RGB and not.
+between LED RGB and not. I have not tested whether using the ESP driver
+works.
 
 Whether you can use the "direct" mode or not depends on whether you have other
 users of the RMT driver within ESP-IDF. 
 
 Essentially, if you have the Driver turned on, you shouldn't use the direct mode,
 and if you want to use the direct mode, you should turn off the driver.
-
-I have not yet validated if this library correctly uses RMT.
 
 No extra commands in `menuconfig` seem necessary.
 
