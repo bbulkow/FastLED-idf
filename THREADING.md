@@ -2,6 +2,13 @@
 
 I believe I understand how this is supposed to work.
 
+## Note! 3 wire only
+
+Everything below about RMT and parallel use likely flies out the
+window with a 4-wire LED. No one has ported FastLED on ESP32 to use
+hardware assiste for 4-wire LEDs, that's why you get that ugly
+warning about no hardware assist.
+
 ## Parallel output, or multiple controller, mode
 
 FastLED talks a bit about what they call 'multi channel'. This is
