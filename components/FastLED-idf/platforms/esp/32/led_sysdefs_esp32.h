@@ -24,7 +24,8 @@ typedef unsigned long prog_uint32_t;
 # define INTERRUPT_THRESHOLD 0
 #endif
 
-#define NEED_CXX_BITS
+// BB - I think I'm compiling in CXX in this project
+// #define NEED_CXX_BITS
 
 // These can be overridden
 #   define FASTLED_ESP32_RAW_PIN_ORDER

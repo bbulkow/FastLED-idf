@@ -12,6 +12,7 @@ set(srcs
 		"power_mgt.cpp"
 		"wiring.cpp"
 		"hal/esp32-hal-misc.c"
+		"hal/esp32-hal-gpio.c"
 		)
 
 # everything needs the ESP32 flag, not sure why this won't work

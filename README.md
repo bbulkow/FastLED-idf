@@ -34,7 +34,7 @@ changing the duty cycle and brightness, it doesn't control color-controlled LEDs
 
 Thus, we need FastLED.
 
-# Use of ESP32 hardware
+# Use of ESP32 hardware for 3 wire LEDs
 
 The ESP32 has an interesting module, called RMT. It's a module that's
 meant to make arbitrary waveforms on pins, without having to bang each pin at
@@ -60,6 +60,25 @@ I have not yet validated if this library correctly uses RMT.
 
 No extra commands in `menuconfig` seem necessary.
 
+# Four wire LEDs ( APA102 and similar )
+
+Interestingly, four wire LEDs can't use the RMT interface, because
+the clock and data lines have to be controled together ( duh ),
+and the RMT interface doesn't do that. What does do that is the SPI
+interface, and I don't think I've wired that up.
+
+There are two hardware SPI ports in the system, so that should be
+able to be enabled. I haven't tried that.
+
+Since hardware banging is used ( that's the big ugly warning ),
+these LEDs are very likely far slower, and probably do not respond to parallelism
+the same way.
+
+I have pulled in enough of the HAL for the APA102 code to compile,
+but I don't know if it works, since I don't have any four-wire LEDs
+around. Since it's very much a different code path, I'm not going to make
+promises until someone tries it.
+
 # async mode
 
 The right way to use a system like this is with some form of async mode, where the CPU
@@ -68,27 +87,15 @@ happening. This would allow much better multi-channel work, because the CPU coul
 one channel, then go off and fill the next channel, etc. For that, you'd have to use
 the LastLED async interfaces.
 
-Why do you want to use multiple channels? Apply the FadeCandy algos. The reason the fadecandy
-is teh awesome is it applies "temporal anti-aliasing", which is to say, it always drives the 
-LEDs at full speed, and when it's trying to display a certain color, it actually displays a blend
-of other colors. This allows far more resolution than the underlying LED hardware might be
-capable of.
+It turns out this all works just peachy, it's just that the FastLED interface is a little
+peculiar. If you see the THREADING document in this directory, you'll
+see that this port is enabling multi-channel mode when using 3-wire LEDs,
+which means you change all the pixels, and when you call FastLED.show(), they'll
+all bang on the RMT hardware, and use very little main CPU.
 
-However, it means you need to drive lots of bytes all the time. The fadecandy appears to drive
-400Khz across its 64-led maximum strings _all the time_. If we did that with this system, one core
-would drive one string. Sure, we've got two cores, but that's not very fun.
-
-With an async system, you can drive as many strings as you want in parallel, and let RMT loose.
-There are only 8 RMT channels, so you can at least get up to the capacity of a single FadeCandy.
-
-Still - imagine the possibilities. If you're not applying temporal dithering, you can at least have
-a ton more parallel strings. Instead of being limited to about 1k LEDs saturating an entire core
-at 30fps with no "temporal dithering", you might be able to get upward of 4k or 8k ( to be measured ).
-
-In order to do this in the happiest way, you'd like to use FastLED's coordination systems. You'd
-like an async call to complete using a C feature, to take mutexes because it might be interrupting
-with the scheduler, or to put a message on one of the message queues for service. Doing all
-that would be a major expansion of the FastLED interface and would diverge from the "published spec".
+It would be nicer if FastLED had some sort of Async mode, but that's not
+really the Arduino way, and this code is meant for arduino. Arduino doesn't
+have threads of control or message queues or anything like that.
 
 # A bit about esp-idf
 
@@ -130,6 +137,10 @@ Not really. There is an included 'ledc' library, which
 simply changes the duty cycle on a pin using the RMT interface.
 It doesn't do pixel color control. It can be an example of using
 the RMT system, that's it.
+
+There is an example of LED control, using the RMT interface directly.
+If you just want to it like that, without all the cool stuff in FastLED,
+be everyone's guest!
 
 I did reach out to Espressif. I think they should include or have a FastLED port.
 In their forums, they said they don't intend to do anything like that.
@@ -342,6 +353,8 @@ Note: what's up with registering the driver? I should, right? Make sure that's d
 menuconfig? Doen't seem to be. There are no settings anywhere in the menuconfig regarding
 gpio. Should probably look at the examples to see if I have to enable the ISR or something.
 
+
+
 ## using RMT vs I2S
 
 Note to self: There is a define in the platforms area that lets a person choose.
@@ -389,10 +402,9 @@ After looking a bit, it doesn't seem unreasonable to remove all the memmoves and
 loops. It's been done in other places of the code. Otherwise, one could say "IF GCC8" or something
 similar, because I bet it really does matter on smaller systems. Maybe even on this one.
 
-There is a menuconfig to turn off new warnings introduced from GCC6 to GCC8.
-
-The other thing is to cast these to void, but ewww. Anyone who uses C++ on an embedded system
-should go whole hog.
+In the upstream code of FastLED, there is an introduction of a void * cast in these two places.
+That's the other way of doing it, and the code does "promise" that the classes in question
+can be memcpy'd. If someone re-ports the code, they could fix this.
 
 ## Don't use C
 
@@ -400,8 +412,28 @@ Had a main.c , and FastLED.h includes nothing but C++. Therefore, all the source
 that include FastLED have to be using the C++ compiler, and ESP-IDF has the standard rules
 for using C for C and CPP for CPP because it's not like they are subsets or something.
 
+## CXX_STUFF
+
+There is some really scary code about guards. It is defined if ESP32, 
+and seems to override the way the compiler executes a certain kind of guard.
+I've turned that off, because I think we should probably trust esp-idf to do the
+right and best thing for that
+
+## pulled in too much of the hal
+
+In order to get 4-wire LEDs compiling, it's necessary to pull in the HAL gpio.c . 
+Just to get one lousy function - pinMode. I probably should
+have simply had the function call gpio_set_direction(), which is the esp_idf
+function, directly. If you have a 4-wire system, I left a breadcrumb in the
+fastpin_esp32 directory. If the alternate code works, then you can take the
+gpio.c out of the hal compile.
+
 ## message about no hardware SPI pins defined
 
-This appears widely known to be a warning on ESP32 to go look and see if the RMT system
-is getting included. Do need to put in some printfs to see if RMT is enabled,
-and see if the async system works, which would be the cool part of RMT.
+It's true! There are no hardware SPI pins defined. SPI is used for 4-wire LEDs, where
+you have to synchronize the clock and data.
+
+If you have 3-wire LEDs, you'll be using the RMT system, which is super fast anyway.
+
+The upstream code doesn't seem to use SPI on ESP32 either, so that's just a big hairy
+todo, and don't worry overmuch.

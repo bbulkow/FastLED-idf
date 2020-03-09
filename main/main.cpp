@@ -23,8 +23,8 @@ extern const TProgmemPalette16 IRAM_ATTR myRedWhiteBluePalette_p;
 #include "palettes.h"
 
 #define NUM_LEDS 40
-#define DATA_PIN 18 
-#define BRIGHTNESS  64
+#define DATA_PIN 13 
+#define BRIGHTNESS  80
 #define LED_TYPE    WS2811
 #define COLOR_ORDER RGB
 CRGB leds[NUM_LEDS];
@@ -99,17 +99,18 @@ CRGB colors[N_COLORS] = {
 
 void blinkLeds_simple(void *pvParameters){
 
-  while(1){
-  	printf("blink leds\n");
+ 	while(1){
 
-	  for (int j=0;j<N_COLORS;j++) {
-	    for (int i=0;i<NUM_LEDS;i++) {
-	      leds[i] = colors[j];
-	    }
-	    FastLED.show();
-	    delay(1000);
-	  };
-   }
+		for (int j=0;j<N_COLORS;j++) {
+			printf("blink leds\n");
+
+			for (int i=0;i<NUM_LEDS;i++) {
+			  leds[i] = colors[j];
+			}
+			FastLED.show();
+			delay(1000);
+		};
+	}
 };
 
 #define N_COLORS_CHASE 7
@@ -154,9 +155,13 @@ void blinkLeds_chase(void *pvParameters) {
 
 void app_main() {
   printf(" entering app main, call add leds\n");
+  // the WS2811 family uses the RMT driver
   FastLED.addLeds<LED_TYPE, DATA_PIN>(leds, NUM_LEDS);
+  // this is a good test because it uses the GPIO ports
+  //FastLED.addLeds<APA102, 13, 15>(leds, NUM_LEDS);
+
   printf(" set max power\n");
-  FastLED.setMaxPowerInVoltsAndMilliamps(5,1000);
+  FastLED.setMaxPowerInVoltsAndMilliamps(5,2000);
   printf("create task for led blinking\n");
   xTaskCreatePinnedToCore(&blinkLeds_simple, "blinkLeds", 4000, NULL, 5, NULL, 0);
 }

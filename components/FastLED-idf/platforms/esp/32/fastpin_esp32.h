@@ -17,6 +17,13 @@ public:
   typedef volatile uint32_t * port_ptr_t;
   typedef uint32_t port_t;
 
+// BB
+// It could be better to to the following, then not have to pull in as
+// much of the hal:
+// inline static void setOutput() { gpio_set_direction(PIN, GPIO_MODE_OUTPUT); }
+// inline static void setInput() { gpio_set_direction(PIN, GPIO_MODE_INPUT); }
+
+
   inline static void setOutput() { pinMode(PIN, OUTPUT); }
   inline static void setInput() { pinMode(PIN, INPUT); }
 

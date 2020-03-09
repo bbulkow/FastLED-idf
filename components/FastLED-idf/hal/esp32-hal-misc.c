@@ -34,7 +34,7 @@
 #include "soc/rtc.h"
 #include "soc/rtc_cntl_reg.h"
 #include "soc/apb_ctrl_reg.h"
-#include "rom/rtc.h"
+#include "esp32/rom/rtc.h"
 #include "esp_task_wdt.h"
 #include "esp32-hal.h"
 
