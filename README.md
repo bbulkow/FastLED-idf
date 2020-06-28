@@ -4,6 +4,11 @@
 
 This port of FastLED 3.3 runs under the 4.x ESP-IDF development environment. Enjoy.
 
+Note you must use the ESP-IDF environment, and the ESP-IDF build system. That's how the paths and whatnot are created.
+
+Here is the link to the ESP-IDF getting started guide.
+https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/
+
 Pull requests welcome.
 
 # Why we need FastLED-idf
