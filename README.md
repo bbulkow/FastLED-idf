@@ -499,6 +499,14 @@ function, directly. If you have a 4-wire system, I left a breadcrumb in the
 fastpin_esp32 directory. If the alternate code works, then you can take the
 gpio.c out of the hal compile.
 
+## interesting instability in RMT initialization
+
+The code in ESP-IDF seems to really like using the pattern of having a macro for a
+default constructor. In the case of initializing the RMT structure, if I did it "by hand"
+and used the -O2 compile option, I got instability. When I switched to using their
+constructure, which seems the same to me generally, I get a stable build. I
+now wonder if this was some of the issue around not using the IRQ....
+
 ## message about no hardware SPI pins defined
 
 It's true! There are no hardware SPI pins defined. SPI is used for 4-wire LEDs, where
