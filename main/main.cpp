@@ -157,11 +157,15 @@ void app_main() {
   printf(" entering app main, call add leds\n");
   // the WS2811 family uses the RMT driver
   FastLED.addLeds<LED_TYPE, DATA_PIN>(leds, NUM_LEDS);
-  // this is a good test because it uses the GPIO ports
+
+  // this is a good test because it uses the GPIO ports, these are 4 wire not 3 wire
   //FastLED.addLeds<APA102, 13, 15>(leds, NUM_LEDS);
 
   printf(" set max power\n");
+  // I have a 2A power supply, although it's 12v
   FastLED.setMaxPowerInVoltsAndMilliamps(5,2000);
+
+  // change the task below to one of the functions above to try different patterns
   printf("create task for led blinking\n");
   xTaskCreatePinnedToCore(&blinkLeds_simple, "blinkLeds", 4000, NULL, 5, NULL, 0);
 }

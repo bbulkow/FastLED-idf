@@ -2,7 +2,7 @@
 
 # TL;DR
 
-This port of FastLED 3.3 runs under the 4.0 ESP-IDF development environment. Enjoy.
+This port of FastLED 3.3 runs under the 4.x ESP-IDF development environment. Enjoy.
 
 Pull requests welcome.
 
@@ -41,11 +41,27 @@ or might not be correct for your ESP32. I've checked in a version that runs at 2
 runs both cores, uses 40Mhz 4MB DIO Flash, auto-selects the frequency of the clock, and
 only runs on Rev1 hardware, and has turned off things like memory poisoning.
 
+Because I'm trying to support different versions of esp-idf, and the sdkconfig files seem
+contradictory, the one in this repo matches "current" master, with a 4.0, 4.1, and 4.2 version.
+If you'd like to test my starting point, copy the correct one over to sdkconfig and
+give it a try.
+
 I've read scary stuff about Rev0 and GPIO. You have to insert a number of NOP statements
 between bangs of the pins. If you're using that version, you might want to look carefully
 into the issue.
 
-# Use of ESP32 hardware for 3 wire LEDs
+# a note about level shifting
+
+I've now read a lot of reddit posts about people saying "but I hook LEDs up to an Arudino and it works,
+but the ESP32 is flakey". Why yes. That's because ESP32 pins are 3.3v, Arduino pins are 5v, and LED signal
+levels are 5v. Either you get lucky with the LEDs you have, or you go find out about level shifting.
+
+Adafruit's page on level shifting is perfectly good, although you don't need a breakout board,
+and using a 4-pin package isn't so cool as an 8 pin package, since an ESP32 can drive
+8 channels. That's SN74HCT245N , and they're to be had from Digikey at $0.60. Read the datasheet
+carefully and get the direction and the enable pins right - they can't float.
+
+# Use of ESP32 hardware (RMT) for 3 wire LEDs
 
 The ESP32 has an interesting module, called RMT. It's a module that's
 meant to make arbitrary waveforms on pins, without having to bang each pin at
@@ -59,11 +75,15 @@ channels.
 
 The FastLED ESP32 RMT use has two modes: one which uses the "driver", and
 one which doesn't, and claims to be more efficient due to when it's converting
-between LED RGB and not. I have not tested whether using the ESP driver
-works.
+between LED RGB and not. 
 
 Whether you can use the "direct" mode or not depends on whether you have other
 users of the RMT driver within ESP-IDF. 
+
+It also depends on the version of ESP-IDF you're using. I've found that the "direct"
+driver works perfectly well in ESP-IDF 4.0, but with higher versions, there
+are incompatibilities. Since I haven't found solutions yet, the built-in driver
+is used with ESP-IDF v 4.1 and above.
 
 Essentially, if you have the Driver turned on, you shouldn't use the direct mode,
 and if you want to use the direct mode, you should turn off the driver.
@@ -109,7 +129,7 @@ have threads of control or message queues or anything like that.
 
 # A bit about esp-idf
 
-ESP-IDF, in its new 4.0 incarnation, has moved entirely to a cmake infrastructure.
+ESP-IDF, in its new 4.x incarnation, has moved entirely to a cmake infrastructure.
 It creates a couple of key files at every level: `CMakeLists.txt` , `Kconfig`. 
 
 The `CMakeLists.txt` is where elements like which directories have source and includes live.
@@ -128,6 +148,34 @@ rebuilding the entire system every time.
 There's no way to remove components you're not using. Don't want to compile in HTTPS server? Tough.
 The menuconfig system allows you to not run it, but you can't not compile it without
 going in and doing surgery.
+
+# ESP-IDF versions
+
+First of all, if you're changing versions, you have to be quite careful. The only foolproof method
+I've found is a brand new clone, a new install.sh, manually removing the project's build directory,
+and using the defult sdkconfig with a menuconfig, setting the parameters you need within this version.
+
+Within menuconfig, I tend to use the following settings. Minimum required silicon rev to 1, because there 
+are speed workarounds at Rev0 that get compiled in. I change the compiler options to -O2 instead of -Os or -Og.
+Default flash size to 4M, because all the devices I have are 4G.
+
+Second of all, there be some dragons in the different versions.
+
+The FastLed RMT code runs in two different modes - it either uses an onboard driver, or it uses the ESP-IDF RMT driver.
+I've found that if you use the driver that was originally written for FastLED, it works great with ESP-IDF 4.0,
+but crashes horribly in 4.2 and master. These are interesting branches because the new S2 version of the ESP32
+chip requires those branches.
+
+It's quite possible that more and more changes will creep in, or that someone will find the flaw that's causing 4.2
+to crash.
+
+# A short plug for Microsoft's WSL
+
+Although ESP-IDF v4.x has apparently made great strides in working with VS and Platform.io, they still suggest
+you use cmake in windows. This avoids the elephant which is WSL - Windows Service for Linux. I use that
+exclusively for this project, and all of the instructions on how to install and use ESP-IDF for Linux work great,
+including flashing devices over USB. Serial devices are mounted as "/dev/ttySX", where X is the COMM number in the
+device. Really works nicely.
 
 # History 
 
@@ -154,6 +202,14 @@ be everyone's guest!
 
 I did reach out to Espressif. I think they should include or have a FastLED port.
 In their forums, they said they don't intend to do anything like that.
+
+## SamGuyer's fork
+
+According to a reddit post, someone named Sam Guyer fixed the issues with FastLED by using some async
+mechanisms. This is still an arduino port, but maybe it's best to port this over next.
+
+https://github.com/samguyer/FastLED
+
 
 # Updating
 
@@ -206,7 +262,7 @@ However, really being multi-core would mean having a locking semantic around the
 array, or double buffering. FastLED doesn't seem to really think that way,
 rightfully so.
 
-# Liscening
+# Licensing
 
 FastLED is MIT license.
 

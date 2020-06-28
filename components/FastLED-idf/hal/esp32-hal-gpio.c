@@ -24,10 +24,23 @@
 #include "soc/gpio_struct.h"
 #include "soc/rtc_io_reg.h"
 
+#include "driver/rtc_io.h"
+
+// Smooth over versions - why o why?
+#include "esp_idf_version.h"
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(4,1,0)
+#define RTC_IO_DESC (rtc_gpio_desc)
+#else
+#define RTC_IO_DESC (rtc_io_desc)
+#endif
+
+
 const int8_t esp32_adc2gpio[20] = {36, 37, 38, 39, 32, 33, 34, 35, -1, -1, 4, 0, 2, 15, 13, 12, 14, 27, 25, 26};
 
-// BB
+// BB - this is defined in everything except 4.1
+#ifndef GPIO_PIN_COUNT
 #define GPIO_PIN_COUNT 40
+#endif
 
 const DRAM_ATTR esp32_gpioMux_t esp32_gpioMux[GPIO_PIN_COUNT]={
     {0x44, 11, 11, 1},
@@ -81,7 +94,7 @@ typedef struct {
 } InterruptHandle_t;
 static InterruptHandle_t __pinInterruptHandlers[GPIO_PIN_COUNT] = {0,};
 
-#include "driver/rtc_io.h"
+
 
 extern void IRAM_ATTR __pinMode(uint8_t pin, uint8_t mode)
 {
@@ -90,23 +103,23 @@ extern void IRAM_ATTR __pinMode(uint8_t pin, uint8_t mode)
         return;
     }
 
-    uint32_t rtc_reg = rtc_gpio_desc[pin].reg;
+    uint32_t rtc_reg = RTC_IO_DESC[pin].reg;
     if(mode == ANALOG) {
         if(!rtc_reg) {
             return;//not rtc pin
         }
         //lock rtc
         uint32_t reg_val = ESP_REG(rtc_reg);
-        if(reg_val & rtc_gpio_desc[pin].mux){
+        if(reg_val & RTC_IO_DESC[pin].mux){
             return;//already in adc mode
         }
         reg_val &= ~(
-                (RTC_IO_TOUCH_PAD1_FUN_SEL_V << rtc_gpio_desc[pin].func)
-                |rtc_gpio_desc[pin].ie
-                |rtc_gpio_desc[pin].pullup
-                |rtc_gpio_desc[pin].pulldown);
-        ESP_REG(RTC_GPIO_ENABLE_W1TC_REG) = (1 << (rtc_gpio_desc[pin].rtc_num + RTC_GPIO_ENABLE_W1TC_S));
-        ESP_REG(rtc_reg) = reg_val | rtc_gpio_desc[pin].mux;
+                (RTC_IO_TOUCH_PAD1_FUN_SEL_V << RTC_IO_DESC[pin].func)
+                |RTC_IO_DESC[pin].ie
+                |RTC_IO_DESC[pin].pullup
+                |RTC_IO_DESC[pin].pulldown);
+        ESP_REG(RTC_GPIO_ENABLE_W1TC_REG) = (1 << (RTC_IO_DESC[pin].rtc_num + RTC_GPIO_ENABLE_W1TC_S));
+        ESP_REG(rtc_reg) = reg_val | RTC_IO_DESC[pin].mux;
         //unlock rtc
         ESP_REG(DR_REG_IO_MUX_BASE + esp32_gpioMux[pin].reg) = ((uint32_t)2 << MCU_SEL_S) | ((uint32_t)2 << FUN_DRV_S) | FUN_IE;
         return;
@@ -115,13 +128,13 @@ extern void IRAM_ATTR __pinMode(uint8_t pin, uint8_t mode)
     //RTC pins PULL settings
     if(rtc_reg) {
         //lock rtc
-        ESP_REG(rtc_reg) = ESP_REG(rtc_reg) & ~(rtc_gpio_desc[pin].mux);
+        ESP_REG(rtc_reg) = ESP_REG(rtc_reg) & ~(RTC_IO_DESC[pin].mux);
         if(mode & PULLUP) {
-            ESP_REG(rtc_reg) = (ESP_REG(rtc_reg) | rtc_gpio_desc[pin].pullup) & ~(rtc_gpio_desc[pin].pulldown);
+            ESP_REG(rtc_reg) = (ESP_REG(rtc_reg) | RTC_IO_DESC[pin].pullup) & ~(RTC_IO_DESC[pin].pulldown);
         } else if(mode & PULLDOWN) {
-            ESP_REG(rtc_reg) = (ESP_REG(rtc_reg) | rtc_gpio_desc[pin].pulldown) & ~(rtc_gpio_desc[pin].pullup);
+            ESP_REG(rtc_reg) = (ESP_REG(rtc_reg) | RTC_IO_DESC[pin].pulldown) & ~(RTC_IO_DESC[pin].pullup);
         } else {
-            ESP_REG(rtc_reg) = ESP_REG(rtc_reg) & ~(rtc_gpio_desc[pin].pullup | rtc_gpio_desc[pin].pulldown);
+            ESP_REG(rtc_reg) = ESP_REG(rtc_reg) & ~(RTC_IO_DESC[pin].pullup | RTC_IO_DESC[pin].pulldown);
         }
         //unlock rtc
     }

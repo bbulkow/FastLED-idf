@@ -101,6 +101,9 @@ extern "C" {
 
 #include "esp_log.h"
 
+// needed to work around issue with driver problem in 4.1 and master around 2020
+#include "esp_idf_version.h"
+
 #ifdef __cplusplus
 }
 #endif
@@ -137,9 +140,19 @@ __attribute__ ((always_inline)) inline static uint32_t __clock_cycles() {
 #define NS_TO_CYCLES(n)             ( (n) / NS_PER_CYCLE )
 #define RMT_RESET_DURATION          NS_TO_CYCLES(50000)
 
-// -- Core or custom driver
+// -- Core or custom driver --- 'builtin' is the core driver which is supposedly slower
 #ifndef FASTLED_RMT_BUILTIN_DRIVER
+
+// NOTE!
+// there is an upstream issue with using the custom driver. This is in https://github.com/espressif/esp-idf/issues/5476
+// In this, it states that in order to use one of the functions, the upstream must be modified.
+// 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4,1,0)
+#define FASTLED_RMT_BUILTIN_DRIVER true
+#else
 #define FASTLED_RMT_BUILTIN_DRIVER false
+#endif
+
 #endif
 
 // -- Max number of controllers we can support
@@ -271,6 +284,9 @@ protected:
             xSemaphoreGive(gTX_sem);
         }
                 
+
+    // this was crashing in 4.0. I am hoping that registering the IRS through rmt_isr_register does the right thing.
+
         if ( ! FASTLED_RMT_BUILTIN_DRIVER) {
             // -- Allocate the interrupt if we have not done so yet. This
             //    interrupt handler must work for all different kinds of
