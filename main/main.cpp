@@ -76,6 +76,62 @@ void blinkLeds_interesting(void *pvParameters){
 
 };
 
+// Going to use the ESP timer system to attempt to get a frame rate.
+// According to the documentation, this is a fairly high priority,
+// and one should attempt to do minimal work - such as dispatching a message to a queue.
+// at first, let's try just blasting pixels on it.
+
+// Target frames per second
+#define FASTFADE_FPS 30
+
+typedef struct {
+  CHSV color;
+} fastfade_t;
+
+static void _fastfade_cb(void *param){
+
+  fastfade_t *ff = (fastfade_t *)param;
+
+  ff->color.hue++;
+
+  if (ff->color.hue % 10 == 0) {
+    printf("fast hsv fade h: %d s: %d v: %d\n",ff->color.hue,ff->color.s, ff->color.v);
+  }
+
+  fill_solid(leds,NUM_LEDS,ff->color);
+
+  FastLED.show();
+
+};
+
+
+static void fastfade(void *pvParameters){
+
+  fastfade_t ff_t = {
+    .color = CHSV(0/*hue*/,255/*sat*/,255/*value*/)
+  };
+
+  esp_timer_create_args_t timer_create_args = {
+        .callback = _fastfade_cb,
+        .arg = (void *) &ff_t,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "fastfade_timer"
+    };
+
+  esp_timer_handle_t timer_h;
+
+  esp_timer_create(&timer_create_args, &timer_h);
+
+  esp_timer_start_periodic(timer_h, 1000000L / FASTFADE_FPS );
+
+  // suck- just trying this
+  while(1){
+
+      vTaskDelay(1000 / portTICK_PERIOD_MS);
+  };
+
+}
+
 #define N_COLORS 17
 CRGB colors[N_COLORS] = { 
   CRGB::AliceBlue,
@@ -163,9 +219,11 @@ void app_main() {
 
   printf(" set max power\n");
   // I have a 2A power supply, although it's 12v
-  FastLED.setMaxPowerInVoltsAndMilliamps(5,2000);
+  FastLED.setMaxPowerInVoltsAndMilliamps(12,2000);
 
   // change the task below to one of the functions above to try different patterns
   printf("create task for led blinking\n");
-  xTaskCreatePinnedToCore(&blinkLeds_simple, "blinkLeds", 4000, NULL, 5, NULL, 0);
+  //xTaskCreatePinnedToCore(&blinkLeds_simple, "blinkLeds", 4000, NULL, 5, NULL, 0);
+
+  xTaskCreatePinnedToCore(&fastfade, "blinkLeds", 4000, NULL, 5, NULL, 0);
 }
