@@ -13,6 +13,7 @@ set(srcs
 		"wiring.cpp"
 		"hal/esp32-hal-misc.c"
 		"hal/esp32-hal-gpio.c"
+		"platforms/esp/32/clockless_rmt_esp32.cpp"
 		)
 
 # everything needs the ESP32 flag, not sure why this won't work
