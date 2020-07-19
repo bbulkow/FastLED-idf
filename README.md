@@ -4,6 +4,9 @@
 
 This port of FastLED 3.3 runs under the 4.x ESP-IDF development environment. Enjoy.
 
+HUGE UPDATE July 18, 2020. I have ported over Sam Guyer's branch, and now I can do network traffic
+without having glitches. This is a MASSIVE IMPROVEMENT and you owe Sam huge props.
+
 Note you must use the ESP-IDF environment, and the ESP-IDF build system. That's how the paths and whatnot are created.
 
 Here is the link to the ESP-IDF getting started guide.
@@ -210,8 +213,14 @@ In their forums, they said they don't intend to do anything like that.
 
 ## SamGuyer's fork
 
-According to a reddit post, someone named Sam Guyer fixed the issues with FastLED by using some async
-mechanisms. This is still an arduino port, but maybe it's best to port this over next.
+According to a reddit post, someone named Sam Guyer fixed the issues with FastLED. There are
+a number of fundamental problems that Sam has been gnawing on, notably the access to flash
+that happens when you 'read files'.
+
+However, Sam found the truely important thing: that the built-in interrupt handler
+wasn't working, because the use of templates obscured the IRAM_ATTR attribute. Which
+means the "fast interrupt routing" to shovel bits into RMT was running out of executable
+flash, not out of RAM, so of course it wouldn't keep up.
 
 https://github.com/samguyer/FastLED
 
@@ -305,11 +314,10 @@ It seems `idf.py build` uses cores+2. That means when you're actually building y
 you're compiling all the other esp idf components, and you'll see a lot of stuff compile 
 then finally what you want.
 
-The best way is to do a few builds - which will all fail, and the other components 
-without errors ( the ones in esp-idf )
-will finally get built, then you'll be left with only your errors.
+However, in recent versions of ESP-IDF, they've fixed a lot of things about the build system,
+so we really shouldn't complain. Builds are now really fast, and `build` just builds what's not touched.
 
-Building without `-j` parallelism would be nice, but I haven't found a way to do that. And, it would be slow.
+Thanks, espressif!
 
 ## micros
 
