@@ -51,9 +51,6 @@ void yield(void);
 
 #include "esp32-hal-log.h"
 #include "esp32-hal-gpio.h"
-#include "esp32-hal-spi.h"
-#include "esp32-hal-i2c.h"
-#include "esp32-hal-rmt.h"
 #include "esp32-hal-cpu.h"
 
 #ifndef BOARD_HAS_PSRAM
