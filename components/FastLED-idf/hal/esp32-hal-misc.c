@@ -27,9 +27,7 @@
 //#include "esp_ota_ops.h"
 //#endif //CONFIG_APP_ROLLBACK_ENABLE
 
-#ifdef CONFIG_BT_ENABLED
-#include "esp_bt.h"
-#endif //CONFIG_BT_ENABLED
+
 #include <sys/time.h>
 #include "soc/rtc.h"
 #include "soc/rtc_cntl_reg.h"
@@ -53,6 +51,8 @@ void __yield()
 }
 
 void yield() __attribute__ ((weak, alias("__yield")));
+
+#if 0
 
 #if CONFIG_AUTOSTART_ARDUINO
 
@@ -134,6 +134,8 @@ BaseType_t xTaskCreateUniversal( TaskFunction_t pxTaskCode,
 #endif
 }
 
+#endif // test, don't think these are needed
+
 unsigned long IRAM_ATTR micros()
 {
     return (unsigned long) (esp_timer_get_time());
@@ -165,87 +167,4 @@ void IRAM_ATTR delayMicroseconds(uint32_t us)
     }
 }
 
-// BB I don't think any of this will be needed
-#if 0
 
-void initVariant() __attribute__((weak));
-void initVariant() {}
-
-void init() __attribute__((weak));
-void init() {}
-
-bool verifyOta() __attribute__((weak));
-bool verifyOta() { return true; }
-
-#ifdef CONFIG_BT_ENABLED
-//overwritten in esp32-hal-bt.c
-bool btInUse() __attribute__((weak));
-bool btInUse(){ return false; }
-#endif
-
-void initArduino()
-{
-#ifdef CONFIG_APP_ROLLBACK_ENABLE
-    const esp_partition_t *running = esp_ota_get_running_partition();
-    esp_ota_img_states_t ota_state;
-    if (esp_ota_get_state_partition(running, &ota_state) == ESP_OK) {
-        if (ota_state == ESP_OTA_IMG_PENDING_VERIFY) {
-            if (verifyOta()) {
-                esp_ota_mark_app_valid_cancel_rollback();
-            } else {
-                log_e("OTA verification failed! Start rollback to the previous version ...");
-                esp_ota_mark_app_invalid_rollback_and_reboot();
-            }
-        }
-    }
-#endif
-    //init proper ref tick value for PLL (uncomment if REF_TICK is different than 1MHz)
-    //ESP_REG(APB_CTRL_PLL_TICK_CONF_REG) = APB_CLK_FREQ / REF_CLK_FREQ - 1;
-#ifdef F_CPU
-    setCpuFrequencyMhz(F_CPU/1000000);
-#endif
-#if CONFIG_SPIRAM_SUPPORT
-    psramInit();
-#endif
-    esp_log_level_set("*", CONFIG_LOG_DEFAULT_LEVEL);
-    esp_err_t err = nvs_flash_init();
-    if(err == ESP_ERR_NVS_NO_FREE_PAGES){
-        const esp_partition_t* partition = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_NVS, NULL);
-        if (partition != NULL) {
-            err = esp_partition_erase_range(partition, 0, partition->size);
-            if(!err){
-                err = nvs_flash_init();
-            } else {
-                log_e("Failed to format the broken NVS partition!");
-            }
-        }
-    }
-    if(err) {
-        log_e("Failed to initialize NVS! Error: %u", err);
-    }
-#ifdef CONFIG_BT_ENABLED
-    if(!btInUse()){
-        esp_bt_controller_mem_release(ESP_BT_MODE_BTDM);
-    }
-#endif
-    init();
-    initVariant();
-}
-
-//used by hal log
-const char * IRAM_ATTR pathToFileName(const char * path)
-{
-    size_t i = 0;
-    size_t pos = 0;
-    char * p = (char *)path;
-    while(*p){
-        i++;
-        if(*p == '/' || *p == '\\'){
-            pos = i;
-        }
-        p++;
-    }
-    return path+pos;
-}
-
-#endif
