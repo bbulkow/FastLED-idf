@@ -3,6 +3,10 @@
 #define FASTLED_INTERNAL
 #include "FastLED.h"
 
+static const char *TAG = "FastLED";
+
+#define FASTLED_ESP32_SHOWTIMING 1
+
 // -- Forward reference
 class ESP32RMTController;
 
@@ -22,12 +26,21 @@ static int gNext = 0;
 
 static intr_handle_t gRMT_intr_handle = NULL;
 
-
 // -- Global semaphore for the whole show process
 //    Semaphore is not given until all data has been sent
 static xSemaphoreHandle gTX_sem = NULL;
 
+// -- Make sure we can't call show() too quickly
+CMinWait<50>   gWait;
+
 static bool gInitialized = false;
+
+// -- SZG: For debugging purposes
+#if FASTLED_ESP32_SHOWTIMING == 1
+static uint32_t gLastFill[8];
+static int gTooSlow[8];
+static uint32_t gTotalTime[8];
+#endif
 
 ESP32RMTController::ESP32RMTController(int DATA_PIN, int T1, int T2, int T3)
     : mPixelData(0), 
@@ -60,12 +73,14 @@ ESP32RMTController::ESP32RMTController(int DATA_PIN, int T1, int T2, int T3)
     mPin = gpio_num_t(DATA_PIN);
 }
 
-// -- Getters and setters for use in ClocklessController
-uint8_t * ESP32RMTController::getPixelData(int size_in_bytes)
+// -- Get or create the buffer for the pixel data
+//    We can't allocate it ahead of time because we don't have
+//    the PixelController object until show is called.
+uint32_t * ESP32RMTController::getPixelBuffer(int size_in_bytes)
 {
     if (mPixelData == 0) {
-        mSize = size_in_bytes;
-        mPixelData = (uint8_t *) calloc( mSize, sizeof(uint8_t));
+        mSize = ((size_in_bytes-1) / sizeof(uint32_t)) + 1;
+        mPixelData = (uint32_t *) calloc( mSize, sizeof(uint32_t));
     }
     return mPixelData;
 }
@@ -76,13 +91,13 @@ void ESP32RMTController::init()
 {
     if (gInitialized) return;
 
+    ESP_LOGW(TAG, "controller init");
+
     for (int i = 0; i < FASTLED_RMT_MAX_CHANNELS; i++) {
         gOnChannel[i] = NULL;
 
         // -- RMT configuration for transmission
-        rmt_config_t rmt_tx;
-        rmt_tx.channel = rmt_channel_t(i);
-        rmt_tx.rmt_mode = RMT_MODE_TX;
+        rmt_config_t rmt_tx = RMT_DEFAULT_CONFIG_TX((gpio_num_t)0, rmt_channel_t(i));
         rmt_tx.gpio_num = gpio_num_t(0);  // The particular pin will be assigned later
         rmt_tx.mem_block_num = 1;
         rmt_tx.clk_div = DIVIDER;
@@ -98,9 +113,9 @@ void ESP32RMTController::init()
         if (FASTLED_RMT_BUILTIN_DRIVER) {
             rmt_driver_install(rmt_channel_t(i), 0, 0);
         } else {
-            // -- Set up the RMT to send 1 pixel of the pulse buffer and then
+            // -- Set up the RMT to send 32 bits of the pulse buffer and then
             //    generate an interrupt. When we get this interrupt we
-            //    fill the other part in preparation (kind of like double-buffering)
+            //    fill the other part in preparation (like double-buffering)
             rmt_set_tx_thr_intr_en(rmt_channel_t(i), true, PULSES_PER_FILL);
         }
     }
@@ -130,7 +145,6 @@ void ESP32RMTController::showPixels()
     if (gNumStarted == 0) {
         // -- First controller: make sure everything is set up
         ESP32RMTController::init();
-        xSemaphoreTake(gTX_sem, portMAX_DELAY);
 
 #if FASTLED_ESP32_FLASH_LOCK == 1
         // -- Make sure no flash operations happen right now
@@ -146,6 +160,9 @@ void ESP32RMTController::showPixels()
     if (gNumStarted == gNumControllers) {
         gNext = 0;
 
+        // -- This Take always succeeds immediately
+        xSemaphoreTake(gTX_sem, portMAX_DELAY);
+
         // -- First, fill all the available channels
         int channel = 0;
         while (channel < FASTLED_RMT_MAX_CHANNELS && gNext < gNumControllers) {
@@ -154,21 +171,25 @@ void ESP32RMTController::showPixels()
         }
 
         // -- Make sure it's been at least 50us since last show
-        mWait.wait();
+        gWait.wait();
 
         // -- Start them all
+        /* This turns out to be a bad idea. We don't want all of the interrupts
+           coming in at the same time.
         for (int i = 0; i < channel; i++) {
             ESP32RMTController * pController = gControllers[i];
             pController->tx_start();
         }
+        */
 
-        // -- Wait here while the rest of the data is sent. The interrupt handler
-        //    will keep refilling the RMT buffers until it is all sent; then it
-        //    gives the semaphore back.
+        // -- Wait here while the data is sent. The interrupt handler
+        //    will keep refilling the RMT buffers until it is all
+        //    done; then it gives the semaphore back.
         xSemaphoreTake(gTX_sem, portMAX_DELAY);
         xSemaphoreGive(gTX_sem);
 
-        mWait.mark();
+        // -- Make sure we don't call showPixels too quickly
+        gWait.mark();
 
         // -- Reset the counters
         gNumStarted = 0;
@@ -179,6 +200,16 @@ void ESP32RMTController::showPixels()
         // -- Release the lock on flash operations
         spi_flash_op_unlock();
 #endif
+
+#if FASTLED_ESP32_SHOWTIMING == 1
+        // uint32_t expected = (2080000L / (1000000000L/F_CPU));
+        for (int i = 0; i < gNumControllers; i++) {
+            if (gTooSlow[i] > 0) {
+                printf("Channel %d total time %d too slow %d\n",i,gTotalTime[i],gTooSlow[i]);
+            }
+        }
+#endif
+
     }
 }
 
@@ -217,17 +248,21 @@ void ESP32RMTController::startOnChannel(int channel)
         // -- Use our custom driver to send the data incrementally
 
         // -- Initialize the counters that keep track of where we are in
-        //    the pixel data.
-        mRMT_mem_ptr = & (RMTMEM.chan[mRMT_channel].data32[0].val);
+        //    the pixel data and the RMT buffer
+        mRMT_mem_start = & (RMTMEM.chan[mRMT_channel].data32[0].val);
+        mRMT_mem_ptr = mRMT_mem_start;
         mCur = 0;
         mWhichHalf = 0;
 
-        // -- Store 2 pixels worth of data (two "buffers" full)
+        // -- Fill both halves of the RMT buffer (a totaly of 64 bits of pixel data)
         fillNext();
         fillNext();
 
         // -- Turn on the interrupts
         rmt_set_tx_intr_en(mRMT_channel, true);
+
+        // -- Kick off the transmission
+        tx_start();
     }
 }
 
@@ -235,8 +270,13 @@ void ESP32RMTController::startOnChannel(int channel)
 //    Setting this RMT flag is what actually kicks off the peripheral
 void ESP32RMTController::tx_start()
 {
-    // dev->conf_ch[channel].conf1.tx_start = 1;
     rmt_tx_start(mRMT_channel, true);
+
+#if FASTLED_ESP32_SHOWTIMING == 1
+    gLastFill[mRMT_channel] = __clock_cycles();
+    gTooSlow[mRMT_channel] = 0;
+    gTotalTime[mRMT_channel] = 0;
+#endif
 }
 
 // -- A controller is done 
@@ -247,11 +287,11 @@ void ESP32RMTController::tx_start()
 //    controller is done until we look it up.
 void ESP32RMTController::doneOnChannel(rmt_channel_t channel, void * arg)
 {
-    ESP32RMTController * pController = gOnChannel[channel];
-    portBASE_TYPE HPTaskAwoken = 0;
+
 
     // -- Turn off output on the pin
     // SZG: Do I really need to do this?
+    //  ESP32RMTController * pController = gOnChannel[channel];
     // gpio_matrix_out(pController->mPin, 0x100, 0, 0);
 
     gOnChannel[channel] = NULL;
@@ -262,6 +302,7 @@ void ESP32RMTController::doneOnChannel(rmt_channel_t channel, void * arg)
         if (FASTLED_RMT_BUILTIN_DRIVER) {
             xSemaphoreGive(gTX_sem);
         } else {
+            portBASE_TYPE HPTaskAwoken = 0;
             xSemaphoreGiveFromISR(gTX_sem, &HPTaskAwoken);
             if (HPTaskAwoken == pdTRUE) portYIELD_FROM_ISR();
         }
@@ -270,7 +311,6 @@ void ESP32RMTController::doneOnChannel(rmt_channel_t channel, void * arg)
         //    start the next one on this channel
         if (gNext < gNumControllers) {
             startNext(channel);
-            pController->tx_start();
         }
     }
 }
@@ -281,6 +321,10 @@ void ESP32RMTController::doneOnChannel(rmt_channel_t channel, void * arg)
 //    next half of the RMT buffer with data.
 void IRAM_ATTR ESP32RMTController::interruptHandler(void *arg)
 {
+#if FASTLED_ESP32_SHOWTIMING == 1
+    int64_t now = __clock_cycles();
+#endif
+
     // -- The basic structure of this code is borrowed from the
     //    interrupt handler in esp-idf/components/driver/rmt.c
     uint32_t intr_st = RMT.int_st.val;
@@ -292,18 +336,27 @@ void IRAM_ATTR ESP32RMTController::interruptHandler(void *arg)
 
         ESP32RMTController * pController = gOnChannel[channel];
         if (pController != NULL) {
-
-            // -- More to send on this channel
             if (intr_st & BIT(tx_next_bit)) {
+                // -- More to send on this channel
                 RMT.int_clr.val |= BIT(tx_next_bit);
-                    
-                // -- Refill the half of the buffer that we just finished,
-                //    allowing the other half to proceed.
                 pController->fillNext();
+
+#if FASTLED_ESP32_SHOWTIMING == 1
+                uint32_t delta = (now - gLastFill[channel]);
+                if (delta > C_NS(50500)) {
+                    gTooSlow[channel]++;
+                }
+                gTotalTime[channel] += delta;
+                gLastFill[channel] = now;
+#endif
             } else {
                 // -- Transmission is complete on this channel
                 if (intr_st & BIT(tx_done_bit)) {
                     RMT.int_clr.val |= BIT(tx_done_bit);
+#if FASTLED_ESP32_SHOWTIMING == 1
+                    uint32_t delta = (now - gLastFill[channel]);
+                    gTotalTime[channel] += delta;
+#endif
                     doneOnChannel(rmt_channel_t(channel), 0);
                 }
             }
@@ -319,18 +372,15 @@ void IRAM_ATTR ESP32RMTController::fillNext()
 {
     if (mCur < mSize) {
         // -- Get the zero and one values into local variables
-        uint32_t one_val = mOne.val;
-        uint32_t zero_val = mZero.val;
-
-        // -- Fill 32 slots in the RMT memory
-        uint8_t a = mPixelData[mCur++];
-        uint8_t b = mPixelData[mCur++];
-        uint8_t c = mPixelData[mCur++];
-        uint8_t d = mPixelData[mCur++];
-        register uint32_t pixeldata = a << 24 | b << 16 | c << 8 | d;
+        register uint32_t one_val = mOne.val;
+        register uint32_t zero_val = mZero.val;
 
         // -- Use locals for speed
         volatile register uint32_t * pItem =  mRMT_mem_ptr;
+
+        // -- Get the next four bytes of pixel data
+        register uint32_t pixeldata = mPixelData[mCur];
+        mCur++;
             
         // Shift bits out, MSB first, setting RMTMEM.chan[n].data32[x] to the 
         // rmt_item32_t value corresponding to the buffered bit value
@@ -344,7 +394,7 @@ void IRAM_ATTR ESP32RMTController::fillNext()
         // -- Flip to the other half, resetting the pointer if necessary
         mWhichHalf++;
         if (mWhichHalf == 2) {
-            pItem = & (RMTMEM.chan[mRMT_channel].data32[0].val);
+            pItem = mRMT_mem_start;
             mWhichHalf = 0;
         }
 
@@ -369,6 +419,7 @@ void ESP32RMTController::initPulseBuffer(int size_in_bytes)
         mBufferSize = size_in_bytes * 8 * 4;
 
         mBuffer = (rmt_item32_t *) calloc( mBufferSize, sizeof(rmt_item32_t));
+
     }
     mCurPulse = 0;
 }
@@ -385,3 +436,4 @@ void ESP32RMTController::convertByte(uint32_t byteval)
         mCurPulse++;
     }
 }
+
