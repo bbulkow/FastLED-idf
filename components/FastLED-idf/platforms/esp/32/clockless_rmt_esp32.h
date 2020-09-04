@@ -1,5 +1,6 @@
 /*
  * Integration into FastLED ClocklessController
+ * Copyright (c) 2020 Brian Bulkowski brian@bulkowski.org
  * Copyright (c) 2018,2019,2020 Samuel Z. Guyer
  * Copyright (c) 2017 Thomas Basler
  * Copyright (c) 2017 Martin F. Falatic
@@ -138,26 +139,32 @@ __attribute__ ((always_inline)) inline static uint32_t __clock_cycles() {
 #define FASTLED_HAS_CLOCKLESS 1
 #define NUM_COLOR_CHANNELS 3
 
-// NOT CURRENTLY IMPLEMENTED:
-// -- Set to true to print debugging information about timing
-//    Useful for finding out if timing is being messed up by other things
-//    on the processor (WiFi, for example)
-//#ifndef FASTLED_RMT_SHOW_TIMER
-//#define FASTLED_RMT_SHOW_TIMER false
-//#endif
 
 // -- Configuration constants
 #define DIVIDER             2 /* 4, 8 still seem to work, but timings become marginal */
-#define MAX_PULSES         64 /* A channel has a 64 "pulse" buffer */
-#define PULSES_PER_FILL    32 /* Half of the channel buffer */
+                                /* there is no point in higher dividers, as this parameter only needs to make
+                                   sure the scaling factors of the RMT intervals fit in 15 bits. */
+
+#define MEM_BLOCK_NUM       2 /* the number of memory blocks. There are 8 for the entire RMT system, and nominally
+                                1 per channel. Using a larger number reduces the number of hardware channels that can be used
+                                at one time, but increases the resistance to RTOS interrupt jitter. 1 seems to be good enough,
+                                but jitter created by wifi might still cause glitches and 2 or more may be reuired. */
+#define PULSES_PER_CHANNEL  (64 * MEM_BLOCK_NUM) /* A channel has a 64 "pulse" buffer of 32 bits (aka Items in RMT interface) */
+#define PULSES_PER_FILL     (PULSES_PER_CHANNEL / 2)     /* Half of the channel buffer */
+                            // PPF must be a multipel of 32 or fillNext must be re-coded
 
 // -- Convert ESP32 CPU cycles to RMT device cycles, taking into account the divider
+// -- according to https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/rmt.html
+//    the RMT clock is taken at 80 000 000 
 #define F_CPU_RMT                   (  80000000L)
 #define RMT_CYCLES_PER_SEC          (F_CPU_RMT/DIVIDER)
 #define RMT_CYCLES_PER_ESP_CYCLE    (F_CPU / RMT_CYCLES_PER_SEC)
 #define ESP_TO_RMT_CYCLES(n)        ((n) / (RMT_CYCLES_PER_ESP_CYCLE))
 
+#define CYCLES_TO_US(n)             ( (n) / (F_CPU / 1000000L ))
+
 // -- Number of cycles to signal the strip to latch
+// in RMT cycles
 #define NS_PER_CYCLE                ( 1000000000L / RMT_CYCLES_PER_SEC )
 #define NS_TO_CYCLES(n)             ( (n) / NS_PER_CYCLE )
 #define RMT_RESET_DURATION          NS_TO_CYCLES(50000)
@@ -174,8 +181,17 @@ __attribute__ ((always_inline)) inline static uint32_t __clock_cycles() {
 
 // -- Number of RMT channels to use (up to 8)
 //    Redefine this value to 1 to force serial output
+// -- todo: this is wrong if MEM_BLOCK_NUM is 3, but at least it's safe
 #ifndef FASTLED_RMT_MAX_CHANNELS
-#define FASTLED_RMT_MAX_CHANNELS 8
+#define FASTLED_RMT_MAX_CHANNELS ( 8 / MEM_BLOCK_NUM )
+#endif
+
+// use this if you want to try the flash lock
+// doesn't seem to make any postitive difference
+//#define FASTLED_ESP32_FLASH_LOCK 1
+
+#ifndef FASTLED_ESP32_SHOWTIMING
+#define FASTLED_ESP32_SHOWTIMING 0
 #endif
 
 class ESP32RMTController
@@ -191,6 +207,12 @@ private:
     // -- Timing values for zero and one bits, derived from T1, T2, and T3
     rmt_item32_t   mZero;
     rmt_item32_t   mOne;
+
+    // -- Total expected time to send 32 bits
+    //    Each strip should get an interrupt roughly at this interval
+    uint32_t       mCyclesPerFill;
+    uint32_t       mMaxCyclesPerFill;
+    uint32_t       mLastFill;
 
     // -- Pixel data
     uint32_t *     mPixelData;
@@ -214,6 +236,9 @@ public:
     //    Mainly just stores the template parameters from the LEDController as
     //    member variables.
     ESP32RMTController(int DATA_PIN, int T1, int T2, int T3);
+
+    // -- Get max cycles per fill
+    uint32_t IRAM_ATTR getMaxCyclesPerFill() const { return mMaxCyclesPerFill; }
 
     // -- Get or create the pixel data buffer
     uint32_t * getPixelBuffer(int size_in_bytes);
@@ -253,6 +278,16 @@ public:
     //    done writing its data, or a controller needs to fill the
     //    next half of the RMT buffer with data.
     static void IRAM_ATTR interruptHandler(void *arg);
+
+    // -- Determine if there was a long pause
+    //    Especially in ESP32, it seems hard to guarentee that interrupts fire
+    //    this function checks to see if there has been a long period
+    //    so you can abort an RMT send without sending bits that cause flashes
+    //
+    // SIDE EFFECT: Triggers stop of the channel
+    //
+    //    return FALSE means one needs to abort
+    bool IRAM_ATTR timingOk();
 
     // -- Fill RMT buffer
     //    Puts 32 bits of pixel data into the next 32 slots in the RMT memory

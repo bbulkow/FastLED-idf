@@ -4,8 +4,11 @@
 
 This port of FastLED 3.3 runs under the 4.x ESP-IDF development environment. Enjoy.
 
-HUGE UPDATE July 18, 2020. I have ported over Sam Guyer's branch, and now I can do network traffic
-without having glitches. This is a MASSIVE IMPROVEMENT and you owe Sam huge props.
+MASSIVE UPDATE Sept 4, 2020. Even after porting Sam Guyer's branch in July, I still
+had a huge amount of visual artifacts. I've done a huge analysis and have licked the issue to my
+satisfaction, and can say the system simply doesn't glitch.
+
+There are some new tunables, and if you're also fighting glitches, you need to read `components/FastLED-idf/ESP-IDF.md`.
 
 Note you must use the ESP-IDF environment, and the ESP-IDF build system. That's how the paths and whatnot are created.
 
@@ -81,17 +84,25 @@ people for LED control. 8 channels is basically still a ton of LEDs, even
 if the FastLED ESP32 module is even fancier and multiplexes the use of these
 channels.
 
+With the 800k WS8211 and similar that are now common, the end result of the 
+math and the buffers is you need to fill the RMT hardware buffer about every 35microseconds.
+Even with an RTOS, it seems this is problematic, using C code. For this reason,
+the default settings are to use two "memory buffers", which double the depth of the
+RMT hardware buffer, and means that interrupt jitter of up to about 60us can be absorbed
+without visual artifact. However, this means getting hardware accelleration with
+only 4 channels instead of 8. This can be changed back to 8.
+
+Please see the lengthy discussion under `components/FastLED-idf/ESP-IDF.md` to
+enable some tracing to find your timers, and similar.
+
 The FastLED ESP32 RMT use has two modes: one which uses the "driver", and
 one which doesn't, and claims to be more efficient due to when it's converting
 between LED RGB and not. 
 
 Whether you can use the "direct" mode or not depends on whether you have other
-users of the RMT driver within ESP-IDF. 
-
-It also depends on the version of ESP-IDF you're using. I've found that the "direct"
-driver works perfectly well in ESP-IDF 4.0, but with higher versions, there
-are incompatibilities. Since I haven't found solutions yet, the built-in driver
-is used with ESP-IDF v 4.1 and above.
+users of the RMT driver within ESP-IDF - however, *using the ESP-IDF supplied driver is
+not currently working or supported*. I've grown tired of trying to figure out the
+differences of the different versions.
 
 Essentially, if you have the Driver turned on, you shouldn't use the direct mode,
 and if you want to use the direct mode, you should turn off the driver.
