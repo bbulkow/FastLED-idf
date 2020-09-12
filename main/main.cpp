@@ -14,6 +14,8 @@
 #include "esp_spi_flash.h"
 
 #include "FastLED.h"
+#include "FX.h"
+
 CRGBPalette16 currentPalette;
 TBlendType    currentBlending;
 
@@ -27,12 +29,47 @@ extern const TProgmemPalette16 IRAM_ATTR myRedWhiteBluePalette_p;
 #define BRIGHTNESS  80
 #define LED_TYPE    WS2811
 #define COLOR_ORDER RGB
+
 CRGB leds[NUM_LEDS];
 
 
 extern "C" {
   void app_main();
 }
+
+/* test using the FX unit
+**
+*/
+
+static void blinkWithFx(void *pvParameters) {
+
+	uint16_t mode = FX_MODE_STATIC;
+
+	WS2812FX ws2812fx;
+
+	ws2812fx.init(NUM_LEDS, leds, false); // type was configured before
+	ws2812fx.setBrightness(255);
+	ws2812fx.setMode(0 /*segid*/, mode);
+
+
+	// microseconds
+	uint64_t mode_change_time = esp_timer_get_time();
+
+	while (true) {
+
+		if ((mode_change_time + 10000000L) < esp_timer_get_time() ) {
+			mode += 1;
+			mode %= MODE_COUNT;
+			mode_change_time = esp_timer_get_time();
+			ws2812fx.setMode(0 /*segid*/, mode);
+			printf(" changed mode to %d\n", mode);
+		}
+
+		ws2812fx.service();
+		vTaskDelay(10 / portTICK_PERIOD_MS); /*10ms*/
+	}
+};
+
 
 
 void ChangePalettePeriodically(){
@@ -223,7 +260,8 @@ void app_main() {
 
   // change the task below to one of the functions above to try different patterns
   printf("create task for led blinking\n");
-  //xTaskCreatePinnedToCore(&blinkLeds_simple, "blinkLeds", 4000, NULL, 5, NULL, 0);
 
-  xTaskCreatePinnedToCore(&fastfade, "blinkLeds", 4000, NULL, 5, NULL, 0);
+  //xTaskCreatePinnedToCore(&blinkLeds_simple, "blinkLeds", 4000, NULL, 5, NULL, 0);
+  //xTaskCreatePinnedToCore(&fastfade, "blinkLeds", 4000, NULL, 5, NULL, 0);
+  xTaskCreatePinnedToCore(&blinkWithFx, "blinkLeds", 4000, NULL, 5, NULL, 0);
 }

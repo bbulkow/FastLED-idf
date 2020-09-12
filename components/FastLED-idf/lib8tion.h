@@ -1,6 +1,11 @@
 #ifndef __INC_LIB8TION_H
 #define __INC_LIB8TION_H
 
+/* defines get_millis() */
+
+#include "freertos/FreeRTOS.h"
+#include "esp_timer.h"
+
 #include "FastLED.h"
 
 #ifndef __INC_LED_SYSDEFS_H
@@ -915,16 +920,13 @@ typedef q<uint16_t, 12,4> q124;
 // need to provide a function with this signature:
 //   uint32_t get_millisecond_timer();
 // that provides similar functionality.
-// You can also force use of the get_millisecond_timer function
-// by #defining USE_GET_MILLISECOND_TIMER.
-#if (defined(ARDUINO) || defined(SPARK) || defined(FASTLED_HAS_MILLIS)) && !defined(USE_GET_MILLISECOND_TIMER)
-// Forward declaration of Arduino function 'millis'.
-//uint32_t millis();
-#define GET_MILLIS millis
-#else
-uint32_t get_millisecond_timer();
-#define GET_MILLIS get_millisecond_timer
-#endif
+//
+// On ESP-IDF we have esp_timer_get_time which has microseconds.
+// It's a little expensive to get micros and divide, but.... good for now and later we'll
+// fix that uses it
+
+#define GET_MILLIS() (get_millisecond_timer())
+static inline uint32_t get_millisecond_timer() { return( esp_timer_get_time() / 1000);  }
 
 // beat16 generates a 16-bit 'sawtooth' wave at a given BPM,
 ///        with BPM specified in Q8.8 fixed-point format; e.g.

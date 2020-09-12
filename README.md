@@ -1,4 +1,4 @@
-# FastLED-idf
+# FastLED-idf & Patterns
 
 # TL;DR
 
@@ -7,6 +7,8 @@ This port of FastLED 3.3 runs under the 4.x ESP-IDF development environment. Enj
 MASSIVE UPDATE Sept 4, 2020. Even after porting Sam Guyer's branch in July, I still
 had a huge amount of visual artifacts. I've done a huge analysis and have licked the issue to my
 satisfaction, and can say the system simply doesn't glitch.
+
+UPDATE 2 Sept 11, 2020. Added the WS2812FX pattern library, see below.
 
 There are some new tunables, and if you're also fighting glitches, you need to read `components/FastLED-idf/ESP-IDF.md`.
 
@@ -45,6 +47,12 @@ changing the duty cycle and brightness, it doesn't control color-controlled LEDs
 
 Thus, we need FastLED
 
+# WS8212FX
+
+Playing around, there are "a lot of nice libraries on FastLED", but each and every one of them
+requires porting. At least, now there's a single one to start with. See the underlying component,
+and use it or not. If you don't want it, just don't bring that component over into your project.
+
 # TL;DR about this repo
 
 As with any ESP-IDF project, there is a sdkconfig file. It contains things that might
@@ -57,9 +65,9 @@ contradictory, the one in this repo matches "current" master, with a 4.0, 4.1, a
 If you'd like to test my starting point, copy the correct one over to sdkconfig and
 give it a try.
 
-I've read scary stuff about Rev0 and GPIO. You have to insert a number of NOP statements
-between bangs of the pins. If you're using that version, you might want to look carefully
-into the issue.
+For master, either use the standard `sdkconfig` or build your own. Remove this one,
+and `idf.py menuconfig`, and set whatever paramenters you need. There is
+nothing in this library that's specific to any particular version.
 
 # a note about level shifting
 
@@ -117,7 +125,7 @@ and the RMT interface doesn't do that. What does do that is the SPI
 interface, and I don't think I've wired that up.
 
 There are two hardware SPI ports in the system, so that should be
-able to be enabled. I haven't tried that.
+able to be enabled. Work to do.
 
 Since hardware banging is used ( that's the big ugly warning ),
 these LEDs are very likely far slower, and probably do not respond to parallelism
@@ -226,12 +234,13 @@ In their forums, they said they don't intend to do anything like that.
 
 According to a reddit post, someone named Sam Guyer fixed the issues with FastLED. There are
 a number of fundamental problems that Sam has been gnawing on, notably the access to flash
-that happens when you 'read files'.
+that happens when you 'read files'. His fork was my starting point.
 
-However, Sam found the truely important thing: that the built-in interrupt handler
-wasn't working, because the use of templates obscured the IRAM_ATTR attribute. Which
-means the "fast interrupt routing" to shovel bits into RMT was running out of executable
-flash, not out of RAM, so of course it wouldn't keep up.
+However, I found that the primarily issue with visual artifacts in RMT had to do with
+the amount of ESP-IDF jitter. 
+
+Kudos to Sam for getting the code to a better point, where it was amenable to the optimizations
+I did.
 
 https://github.com/samguyer/FastLED
 
