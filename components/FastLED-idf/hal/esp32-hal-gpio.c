@@ -26,13 +26,12 @@
 
 #include "driver/rtc_io.h"
 
-// Smooth over versions - why o why?
-#include "esp_idf_version.h"
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(4,1,0)
-#define RTC_IO_DESC (rtc_gpio_desc)
-#else
-#define RTC_IO_DESC (rtc_io_desc)
-#endif
+// 
+// NOTE. There was a structure rtc_gpio_desc which described the rtc
+// pins in terms of GPIO pin numbers. In 4.1 this was depricated - although it
+// could be included through menuconfig - in favor of rtc_io_desc, which is 
+// indexed by the RTC_IO_PIN, which is looked up from gpio pin through rtc_io_num_map.
+// as of 9/2020, have recoded for the new API . This is touched really only in pinMode
 
 
 const int8_t esp32_adc2gpio[20] = {36, 37, 38, 39, 32, 33, 34, 35, -1, -1, 4, 0, 2, 15, 13, 12, 14, 27, 25, 26};
@@ -43,46 +42,46 @@ const int8_t esp32_adc2gpio[20] = {36, 37, 38, 39, 32, 33, 34, 35, -1, -1, 4, 0,
 #endif
 
 const DRAM_ATTR esp32_gpioMux_t esp32_gpioMux[GPIO_PIN_COUNT]={
-    {0x44, 11, 11, 1},
-    {0x88, -1, -1, -1},
-    {0x40, 12, 12, 2},
-    {0x84, -1, -1, -1},
-    {0x48, 10, 10, 0},
-    {0x6c, -1, -1, -1},
-    {0x60, -1, -1, -1},
-    {0x64, -1, -1, -1},
-    {0x68, -1, -1, -1},
-    {0x54, -1, -1, -1},
-    {0x58, -1, -1, -1},
-    {0x5c, -1, -1, -1},
-    {0x34, 15, 15, 5},
-    {0x38, 14, 14, 4},
-    {0x30, 16, 16, 6},
-    {0x3c, 13, 13, 3},
-    {0x4c, -1, -1, -1},
-    {0x50, -1, -1, -1},
-    {0x70, -1, -1, -1},
-    {0x74, -1, -1, -1},
-    {0x78, -1, -1, -1},
-    {0x7c, -1, -1, -1},
-    {0x80, -1, -1, -1},
-    {0x8c, -1, -1, -1},
-    {0, -1, -1, -1},
+    {0x44, 11, 11, 1},  /* 00 */
+    {0x88, -1, -1, -1}, /* 01 */
+    {0x40, 12, 12, 2},  /* 02 */
+    {0x84, -1, -1, -1}, /* 03 */
+    {0x48, 10, 10, 0},  /* 04 */
+    {0x6c, -1, -1, -1}, /* 05 */
+    {0x60, -1, -1, -1}, /* 06 */
+    {0x64, -1, -1, -1}, /* 07 */
+    {0x68, -1, -1, -1}, /* 08 */
+    {0x54, -1, -1, -1}, /* 09 */
+    {0x58, -1, -1, -1}, /* 10 */
+    {0x5c, -1, -1, -1}, /* 11 */
+    {0x34, 15, 15, 5},  /* 12 */
+    {0x38, 14, 14, 4},  /* 13 */
+    {0x30, 16, 16, 6},  /* 14 */
+    {0x3c, 13, 13, 3},  /* 15 */
+    {0x4c, -1, -1, -1}, /* 16 */
+    {0x50, -1, -1, -1}, /* 17 */
+    {0x70, -1, -1, -1}, /* 18 */
+    {0x74, -1, -1, -1}, /* 19 */
+    {0x78, -1, -1, -1}, /* 20 */
+    {0x7c, -1, -1, -1}, /* 21 */
+    {0x80, -1, -1, -1}, /* 22 */
+    {0x8c, -1, -1, -1}, /* 23 */
+    {0, -1, -1, -1},    /* 24 */
     {0x24, 6, 18, -1}, //DAC1
     {0x28, 7, 19, -1}, //DAC2
-    {0x2c, 17, 17, 7},
-    {0, -1, -1, -1},
-    {0, -1, -1, -1},
-    {0, -1, -1, -1},
-    {0, -1, -1, -1},
-    {0x1c, 9, 4, 8},
-    {0x20, 8, 5, 9},
-    {0x14, 4, 6, -1},
-    {0x18, 5, 7, -1},
-    {0x04, 0, 0, -1},
-    {0x08, 1, 1, -1},
-    {0x0c, 2, 2, -1},
-    {0x10, 3, 3, -1}
+    {0x2c, 17, 17, 7},  /* 27 */
+    {0, -1, -1, -1},    /* 28 */
+    {0, -1, -1, -1},    /* 29 */
+    {0, -1, -1, -1},    /* 30 */
+    {0, -1, -1, -1},    /* 31 */
+    {0x1c, 9, 4, 8},    /* 32 */
+    {0x20, 8, 5, 9},    /* 33 */
+    {0x14, 4, 6, -1},   /* 34 */
+    {0x18, 5, 7, -1},   /* 35 */
+    {0x04, 0, 0, -1},   /* 36 */
+    {0x08, 1, 1, -1},   /* 37 */
+    {0x0c, 2, 2, -1},   /* 38 */
+    {0x10, 3, 3, -1}    /* 39 */
 };
 
 typedef void (*voidFuncPtr)(void);
@@ -103,38 +102,42 @@ extern void IRAM_ATTR __pinMode(uint8_t pin, uint8_t mode)
         return;
     }
 
-    uint32_t rtc_reg = RTC_IO_DESC[pin].reg;
+    // Find out if GPIO pin is RTC pin
+    int rtc_pin = rtc_io_num_map[pin];
+
     if(mode == ANALOG) {
-        if(!rtc_reg) {
+        if(rtc_pin == -1) {
             return;//not rtc pin
         }
+        uint32_t rtc_reg = rtc_io_desc[rtc_pin].reg;
         //lock rtc
         uint32_t reg_val = ESP_REG(rtc_reg);
-        if(reg_val & RTC_IO_DESC[pin].mux){
+        if(reg_val & rtc_io_desc[rtc_pin].mux){
             return;//already in adc mode
         }
         reg_val &= ~(
-                (RTC_IO_TOUCH_PAD1_FUN_SEL_V << RTC_IO_DESC[pin].func)
-                |RTC_IO_DESC[pin].ie
-                |RTC_IO_DESC[pin].pullup
-                |RTC_IO_DESC[pin].pulldown);
-        ESP_REG(RTC_GPIO_ENABLE_W1TC_REG) = (1 << (RTC_IO_DESC[pin].rtc_num + RTC_GPIO_ENABLE_W1TC_S));
-        ESP_REG(rtc_reg) = reg_val | RTC_IO_DESC[pin].mux;
+                (RTC_IO_TOUCH_PAD1_FUN_SEL_V << rtc_io_desc[rtc_pin].func)
+                |rtc_io_desc[rtc_pin].ie
+                |rtc_io_desc[rtc_pin].pullup
+                |rtc_io_desc[rtc_pin].pulldown);
+        ESP_REG(RTC_GPIO_ENABLE_W1TC_REG) = (1 << (rtc_io_desc[rtc_pin].rtc_num + RTC_GPIO_ENABLE_W1TC_S));
+        ESP_REG(rtc_reg) = reg_val | rtc_io_desc[rtc_pin].mux;
         //unlock rtc
-        ESP_REG(DR_REG_IO_MUX_BASE + esp32_gpioMux[pin].reg) = ((uint32_t)2 << MCU_SEL_S) | ((uint32_t)2 << FUN_DRV_S) | FUN_IE;
+        ESP_REG(DR_REG_IO_MUX_BASE + esp32_gpioMux[rtc_pin].reg) = ((uint32_t)2 << MCU_SEL_S) | ((uint32_t)2 << FUN_DRV_S) | FUN_IE;
         return;
     }
 
     //RTC pins PULL settings
-    if(rtc_reg) {
+    if(rtc_pin != -1) {
         //lock rtc
-        ESP_REG(rtc_reg) = ESP_REG(rtc_reg) & ~(RTC_IO_DESC[pin].mux);
+        uint32_t rtc_reg = rtc_io_desc[rtc_pin].reg;
+        ESP_REG(rtc_reg) = ESP_REG(rtc_reg) & ~(rtc_io_desc[rtc_pin].mux);
         if(mode & PULLUP) {
-            ESP_REG(rtc_reg) = (ESP_REG(rtc_reg) | RTC_IO_DESC[pin].pullup) & ~(RTC_IO_DESC[pin].pulldown);
+            ESP_REG(rtc_reg) = (ESP_REG(rtc_reg) | rtc_io_desc[rtc_pin].pullup) & ~(rtc_io_desc[rtc_pin].pulldown);
         } else if(mode & PULLDOWN) {
-            ESP_REG(rtc_reg) = (ESP_REG(rtc_reg) | RTC_IO_DESC[pin].pulldown) & ~(RTC_IO_DESC[pin].pullup);
+            ESP_REG(rtc_reg) = (ESP_REG(rtc_reg) | rtc_io_desc[rtc_pin].pulldown) & ~(rtc_io_desc[rtc_pin].pullup);
         } else {
-            ESP_REG(rtc_reg) = ESP_REG(rtc_reg) & ~(RTC_IO_DESC[pin].pullup | RTC_IO_DESC[pin].pulldown);
+            ESP_REG(rtc_reg) = ESP_REG(rtc_reg) & ~(rtc_io_desc[rtc_pin].pullup | rtc_io_desc[rtc_pin].pulldown);
         }
         //unlock rtc
     }
