@@ -206,7 +206,12 @@ void ESP32RMTController::init()
         gOnChannel[i] = NULL;
 
         // -- RMT configuration for transmission
-        rmt_config_t rmt_tx = RMT_DEFAULT_CONFIG_TX((gpio_num_t)0, rmt_channel_t(i));
+        // NOTE: In ESP-IDF 4.1++, there is a #define to init, but that doesn't exist
+        // in 
+        rmt_config_t rmt_tx;
+        memset((void*) &rmt_tx, 0, sizeof(rmt_tx));
+        rmt_tx.channel = rmt_channel_t(i);
+        rmt_tx.rmt_mode = RMT_MODE_TX;
         rmt_tx.gpio_num = gpio_num_t(0);  // The particular pin will be assigned later
         rmt_tx.mem_block_num = MEM_BLOCK_NUM; 
         rmt_tx.clk_div = DIVIDER;
