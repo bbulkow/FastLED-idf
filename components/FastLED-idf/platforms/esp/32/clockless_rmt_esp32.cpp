@@ -225,17 +225,15 @@ void ESP32RMTController::init()
         // warning: using more than MEM_BLOCK_NUM 1 means sometimes this might fail because
         // we don't have enough MEM_BLOCKs. Todo: add code to track and only allocate as many channels
         // as we have memblocks.
-        ESP_ERROR_CHECK(
-            rmt_config(&rmt_tx)
-        );
+        ESP_ERROR_CHECK( rmt_config(&rmt_tx) );
 
         if (FASTLED_RMT_BUILTIN_DRIVER) {
-            rmt_driver_install(rmt_channel_t(i), 0, 0);
+            ESP_ERROR_CHECK( rmt_driver_install(rmt_channel_t(i), 0, 0) );
         } else {
             // -- Set up the RMT to send 32 bits of the pulse buffer and then
             //    generate an interrupt. When we get this interrupt we
             //    fill the other part in preparation (like double-buffering)
-            rmt_set_tx_thr_intr_en(rmt_channel_t(i), true, PULSES_PER_FILL);
+            ESP_ERROR_CHECK( rmt_set_tx_thr_intr_en(rmt_channel_t(i), true, PULSES_PER_FILL) );
         }
     }
 
@@ -290,7 +288,9 @@ void ESP32RMTController::showPixels()
         int channel = 0;
         while (channel < FASTLED_RMT_MAX_CHANNELS && gNext < gNumControllers) {
             ESP32RMTController::startNext(channel);
-            channel++;
+            // -- Important: when we use more than one memory block, we need to 
+            // skip the channels that would otherwise overlap in memory. SZG
+            channel += MEM_BLOCK_NUM;
         }
 
         // -- Make sure it's been at least 50us since last show
