@@ -1,5 +1,7 @@
 # FastLED-idf & Patterns
 
+# WARNING! Currently known to crash with ESP-IDF 4.1, issue #15 under investigation
+
 # TL;DR
 
 This port of FastLED 3.3 runs under the 4.x ESP-IDF development environment. Enjoy.
