@@ -1,7 +1,5 @@
 # FastLED-idf & Patterns
 
-# WARNING! Currently crashes immediately with more than one string of LEDs, issue #16
-
 # TL;DR
 
 This port of FastLED 3.3 runs under the 4.x ESP-IDF development environment. Enjoy.
@@ -110,9 +108,7 @@ one which doesn't, and claims to be more efficient due to when it's converting
 between LED RGB and not. 
 
 Whether you can use the "direct" mode or not depends on whether you have other
-users of the RMT driver within ESP-IDF - however, *using the ESP-IDF supplied driver is
-not currently working or supported*. I've grown tired of trying to figure out the
-differences of the different versions.
+users of the RMT driver within ESP-IDF.
 
 Essentially, if you have the Driver turned on, you shouldn't use the direct mode,
 and if you want to use the direct mode, you should turn off the driver.
@@ -246,6 +242,12 @@ I did.
 
 https://github.com/samguyer/FastLED
 
+## TODO: use the `rmt_translator_init` function
+
+There is no reason to have ones own ISR. The ESP-IDF system has a 'translator', which
+is a function which will take pixel bytes to RMT buffers. This is the structure of the 
+code already, so the entire ISR can be removed. This functionality is not in the Arduino
+implementation of RMT, which is why its not used here yet.
 
 # Updating
 
@@ -454,8 +456,6 @@ Note: what's up with registering the driver? I should, right? Make sure that's d
 menuconfig? Doen't seem to be. There are no settings anywhere in the menuconfig regarding
 gpio. Should probably look at the examples to see if I have to enable the ISR or something.
 
-
-
 ## using RMT vs I2S
 
 Note to self: There is a define in the platforms area that lets a person choose.
@@ -536,6 +536,23 @@ default constructor. In the case of initializing the RMT structure, if I did it 
 and used the -O2 compile option, I got instability. When I switched to using their
 constructure, which seems the same to me generally, I get a stable build. I
 now wonder if this was some of the issue around not using the IRQ....
+
+## issues regarding ESP-IDF 4.1 and private interrupt handler
+
+The underlying RMT code in ESP-IDF changed fairly radically between 4.0, 4.1, 4.2, and further.
+Specifically, the 4.1 code introduces the rmt_ll layer, but also initializes 
+the structures used by `_set_tx_thr_intr_en` to set values in the chip only
+when the ESP-IDF interrupt handler is registered. This is resolved in 4.2, but 
+in order to support 4.0, 4.1, and 4.2, I've put shadow versions of those functions.
+There are only three, so it's not a big deal.
+
+## using mRMT_channel
+
+The definition of the RMT system states that if you're using a buffer size of greater
+than 1 MEM_BLOCK, one must not use all the RMT channels. Thus, unlike other similar code
+in other systems, there are 8 channels and 8 rmt channels, but because we support MEM_BLOCK,
+the number of channels is limited by the MEM_BLOCKs, and it's important to use mRMT_channel,
+which is the underlying RMT channel in every case.
 
 ## message about no hardware SPI pins defined
 
