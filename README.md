@@ -1,6 +1,6 @@
 # FastLED-idf & Patterns
 
-# WARNING! Currently known to crash with ESP-IDF 4.1, issue #15 under investigation
+# WARNING! Currently crashes immediately with more than one string of LEDs, issue #16
 
 # TL;DR
 
