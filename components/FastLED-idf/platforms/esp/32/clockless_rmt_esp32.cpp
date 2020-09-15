@@ -527,8 +527,10 @@ void IRAM_ATTR ESP32RMTController::interruptHandler(void *arg)
         ESP32RMTController * pController = gOnChannel[channel];
         if (pController != NULL) {
 
-            int tx_done_bit = channel * 3;
-            int tx_next_bit = channel + 24;
+            int rmt_channel = pController->mRMT_channel;
+
+            int tx_done_bit = rmt_channel * 3;
+            int tx_next_bit = rmt_channel + 24;
 
             if (intr_st & BIT(tx_next_bit)) {
                 // -- More to send on this channel
@@ -544,7 +546,7 @@ void IRAM_ATTR ESP32RMTController::interruptHandler(void *arg)
             else if (intr_st & BIT(tx_done_bit)) {
 
                 RMT.int_clr.val |= BIT(tx_done_bit);
-                doneOnChannel(rmt_channel_t(channel), 0);
+                doneOnChannel(rmt_channel_t(rmt_channel), 0);
 
             }
         }
