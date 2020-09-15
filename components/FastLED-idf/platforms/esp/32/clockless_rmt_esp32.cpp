@@ -432,7 +432,7 @@ void ESP32RMTController::startOnChannel(int channel)
 
     if (FASTLED_RMT_BUILTIN_DRIVER) {
         // -- Use the built-in RMT driver to send all the data in one shot
-        rmt_register_tx_end_callback(doneOnChannel, 0);
+        rmt_register_tx_end_callback(doneOnRMTChannel, (void *) channel);
         rmt_write_items(mRMT_channel, mBuffer, mBufferSize, false);
     } else {
         // -- Use our custom driver to send the data incrementally
@@ -475,13 +475,20 @@ void ESP32RMTController::tx_start()
 
 }
 
+// In the case of the build-in driver, they specify the RMT channel
+// so we use the arg instead
+void ESP32RMTController::doneOnRMTChannel(rmt_channel_t channel, void * arg) 
+{
+    doneOnChannel((int) arg, (void *) 0);
+}
+
 // -- A controller is done 
 //    This function is called when a controller finishes writing
 //    its data. It is called either by the custom interrupt
 //    handler (below), or as a callback from the built-in
 //    interrupt handler. It is static because we don't know which
 //    controller is done until we look it up.
-void ESP32RMTController::doneOnChannel(rmt_channel_t channel, void * arg)
+void ESP32RMTController::doneOnChannel(int channel, void * arg)
 {
 
     // -- Turn off output on the pin
@@ -546,7 +553,7 @@ void IRAM_ATTR ESP32RMTController::interruptHandler(void *arg)
             else if (intr_st & BIT(tx_done_bit)) {
 
                 RMT.int_clr.val |= BIT(tx_done_bit);
-                doneOnChannel(rmt_channel_t(rmt_channel), 0);
+                doneOnChannel(channel, 0);
 
             }
         }

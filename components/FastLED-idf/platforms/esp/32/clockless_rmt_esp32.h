@@ -274,7 +274,15 @@ public:
     //    handler (below), or as a callback from the built-in
     //    interrupt handler. It is static because we don't know which
     //    controller is done until we look it up.
-    static void IRAM_ATTR doneOnChannel(rmt_channel_t channel, void * arg);
+    static void IRAM_ATTR doneOnChannel(int channel, void * arg);
+
+        // -- A controller is done 
+    //    This function is called when a controller finishes writing
+    //    its data. It is called either by the custom interrupt
+    //    handler (below), or as a callback from the built-in
+    //    interrupt handler. It is static because we don't know which
+    //    controller is done until we look it up.
+    static void IRAM_ATTR doneOnRMTChannel(rmt_channel_t rmt_channel, void * arg);
     
     // -- Custom interrupt handler
     //    This interrupt handler handles two cases: a controller is
