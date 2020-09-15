@@ -24,14 +24,16 @@ extern const TProgmemPalette16 IRAM_ATTR myRedWhiteBluePalette_p;
 
 #include "palettes.h"
 
+//#define NUM_LEDS 512
 #define NUM_LEDS 40
-#define DATA_PIN 13 
+#define DATA_PIN_1 13 
+#define DATA_PIN_2 18
 #define BRIGHTNESS  80
 #define LED_TYPE    WS2811
 #define COLOR_ORDER RGB
 
-CRGB leds[NUM_LEDS];
-
+CRGB leds1[NUM_LEDS];
+CRGB leds2[NUM_LEDS];
 
 extern "C" {
   void app_main();
@@ -47,7 +49,7 @@ static void blinkWithFx(void *pvParameters) {
 
 	WS2812FX ws2812fx;
 
-	ws2812fx.init(NUM_LEDS, leds, false); // type was configured before
+	ws2812fx.init(NUM_LEDS, leds1, false); // type was configured before
 	ws2812fx.setBrightness(255);
 	ws2812fx.setMode(0 /*segid*/, mode);
 
@@ -103,7 +105,8 @@ void blinkLeds_interesting(void *pvParameters){
     startIndex = startIndex + 1; /* motion speed */
     
     for( int i = 0; i < NUM_LEDS; i++) {
-        leds[i] = ColorFromPalette( currentPalette, startIndex, 64, currentBlending);
+        leds1[i] = ColorFromPalette( currentPalette, startIndex, 64, currentBlending);
+        leds2[i] = ColorFromPalette( currentPalette, startIndex, 64, currentBlending);
         startIndex += 3;
     }
     printf("show leds\n");
@@ -135,7 +138,8 @@ static void _fastfade_cb(void *param){
     printf("fast hsv fade h: %d s: %d v: %d\n",ff->color.hue,ff->color.s, ff->color.v);
   }
 
-  fill_solid(leds,NUM_LEDS,ff->color);
+  fill_solid(leds1,NUM_LEDS,ff->color);
+  fill_solid(leds2,NUM_LEDS,ff->color);
 
   FastLED.show();
 
@@ -198,7 +202,8 @@ void blinkLeds_simple(void *pvParameters){
 			printf("blink leds\n");
 
 			for (int i=0;i<NUM_LEDS;i++) {
-			  leds[i] = colors[j];
+			  leds1[i] = colors[j];
+        leds2[i] = colors[j];
 			}
 			FastLED.show();
 			delay(1000);
@@ -225,11 +230,12 @@ void blinkLeds_chase(void *pvParameters) {
 
   		// do it the dumb way - blank the leds
 	    for (int i=0;i<NUM_LEDS;i++) {
-	      leds[i] =   CRGB::Black;
+	      leds1[i] =   CRGB::Black;
+        leds2[i] =   CRGB::Black;
 	    }
 
 	    // set the one LED to the right color
-	    leds[pos] = colors_chase[led_color];
+	    leds1[pos] = leds2[pos] = colors_chase[led_color];
 	    pos = (pos + 1) % NUM_LEDS;
 
 	    // use a new color
@@ -249,7 +255,8 @@ void blinkLeds_chase(void *pvParameters) {
 void app_main() {
   printf(" entering app main, call add leds\n");
   // the WS2811 family uses the RMT driver
-  FastLED.addLeds<LED_TYPE, DATA_PIN>(leds, NUM_LEDS);
+  FastLED.addLeds<LED_TYPE, DATA_PIN_1>(leds1, NUM_LEDS);
+  FastLED.addLeds<LED_TYPE, DATA_PIN_2>(leds2, NUM_LEDS);
 
   // this is a good test because it uses the GPIO ports, these are 4 wire not 3 wire
   //FastLED.addLeds<APA102, 13, 15>(leds, NUM_LEDS);
@@ -262,6 +269,6 @@ void app_main() {
   printf("create task for led blinking\n");
 
   //xTaskCreatePinnedToCore(&blinkLeds_simple, "blinkLeds", 4000, NULL, 5, NULL, 0);
-  //xTaskCreatePinnedToCore(&fastfade, "blinkLeds", 4000, NULL, 5, NULL, 0);
-  xTaskCreatePinnedToCore(&blinkWithFx, "blinkLeds", 4000, NULL, 5, NULL, 0);
+  xTaskCreatePinnedToCore(&fastfade, "blinkLeds", 4000, NULL, 5, NULL, 0);
+  //xTaskCreatePinnedToCore(&blinkWithFx, "blinkLeds", 4000, NULL, 5, NULL, 0);
 }

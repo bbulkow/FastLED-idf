@@ -408,7 +408,8 @@ protected:
     // -- Convert all pixels to RMT pulses
     //    This function is only used when the user chooses to use the
     //    built-in RMT driver, which needs all of the RMT pulses
-    //    up-front.
+    //    up-front. TODO: this has a large memory allocation which
+    //    could fail, should return an error if so
     void convertAllPixelData(PixelController<RGB_ORDER> & pixels)
     {
         // -- Make sure the data buffer is allocated
