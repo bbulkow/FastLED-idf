@@ -199,6 +199,9 @@ class ESP32RMTController
 private:
 
     // -- RMT has 8 channels, numbered 0 to 7
+    // NOTE: if you are using MAX_BLOCK not 1, you'll have fewer, 
+    // and you need to "skip around" -- the RMT channels for MAX_BLOCK == 2
+    // are 0, 2, 4, 6.... etc
     rmt_channel_t  mRMT_channel;
 
     // -- Store the GPIO pin

@@ -4,6 +4,7 @@
 #include "FastLED.h"
 
 //static const char *TAG = "FastLED";
+#include "esp_idf_version.h"
 
 
 // -- Forward reference
@@ -128,6 +129,62 @@ void memorybuf_get(char *b, int *len) {
 
 #endif /* FASTLED_ESP32_SHOWTIMING == 1 */
 
+
+
+/*
+** Internal functions that need to be exposed
+**
+** In 4.0, there's one code structure -- the "ll" interfaces have not been exposed, but
+** one can use the rmt_ functions without setting up the driver.
+*
+** In ESP-IDF 4.1, the functions route through a different structure, which is only set up
+** when the internal driver is called.... but one can bypass with the ll functions.
+**
+** In 4.2, the structures changed again, to go more directly.
+**
+** Really, epressif. You have so much error checking in your code, trying to protect embedded
+** programmers for this and that, and keep changing code that probably doesn't need to change.
+*/
+
+#if ( ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 1, 0)) && ( ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(4, 2, 0))
+
+#define USE_FASTLED_RMT_FNS 1
+
+#include <hal/rmt_ll.h>
+
+esp_err_t fastled_set_tx_thr_intr_en(rmt_channel_t channel, bool en, uint16_t evt_thresh)
+{
+    /* regs is rmt_dev_t, which is the static "RMT" */
+    rmt_ll_set_tx_limit(&RMT, channel, evt_thresh);
+    rmt_ll_enable_tx_thres_interrupt(&RMT, channel, true);
+    return(ESP_OK);
+}
+
+esp_err_t fastled_set_tx_intr_en(rmt_channel_t channel, bool en)
+{
+    /* regs is rmt_dev_t, which is the static "RMT" */
+    rmt_ll_enable_tx_end_interrupt(&RMT, channel, en);
+    return(ESP_OK);
+}
+
+esp_err_t fastled_tx_start(rmt_channel_t channel, bool tx_idx_rst)
+{
+
+    if (tx_idx_rst) {
+        rmt_ll_reset_tx_pointer(&RMT, channel);
+    }
+    rmt_ll_clear_tx_end_interrupt(&RMT, channel);
+    rmt_ll_enable_tx_end_interrupt(&RMT, channel, true);
+    rmt_ll_start_tx(&RMT, channel);
+    return ESP_OK;
+}
+
+#else
+
+#define USE_FASTLED_RMT_FNS 0
+
+#endif // ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(4, 2, 0)
+
 /*
 ** in later versions of the driver, they very carefully set the "mem_owner"
 ** flag before copying over. Let's do the same.
@@ -139,7 +196,7 @@ void memorybuf_get(char *b, int *len) {
 #define RMT_MEM_OWNER_HW 1
 #endif
 
-static inline void rmt_set_mem_owner(rmt_channel_t channel, uint8_t owner)
+static inline void fastled_set_mem_owner(rmt_channel_t channel, uint8_t owner)
 {
     RMT.conf_ch[(uint16_t)channel].conf1.mem_owner = owner;
 }
@@ -202,17 +259,32 @@ void ESP32RMTController::init()
 {
     if (gInitialized) return;
 
+    // -- Create a semaphore to block execution until all the controllers are done
+    if (gTX_sem == NULL) {
+        gTX_sem = xSemaphoreCreateBinary();
+        xSemaphoreGive(gTX_sem);
+    }
+
     for (int i = 0; i < FASTLED_RMT_MAX_CHANNELS; i++) {
+
         gOnChannel[i] = NULL;
+
+        // if you are using MEM_BLOCK_NUM, the RMT channel won't be the same as the "channel number"
+        rmt_channel_t rmt_channel = rmt_channel_t(i * MEM_BLOCK_NUM);
 
         // -- RMT configuration for transmission
         // NOTE: In ESP-IDF 4.1++, there is a #define to init, but that doesn't exist
-        // in 
+        // in earlier versions
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 1, 0)
+        rmt_config_t rmt_tx = RMT_DEFAULT_CONFIG_TX(gpio_num_t(0), rmt_channel);
+#else
         rmt_config_t rmt_tx;
         memset((void*) &rmt_tx, 0, sizeof(rmt_tx));
-        rmt_tx.channel = rmt_channel_t(i);
+        rmt_tx.channel = rmt_channel;
         rmt_tx.rmt_mode = RMT_MODE_TX;
         rmt_tx.gpio_num = gpio_num_t(0);  // The particular pin will be assigned later
+#endif
+
         rmt_tx.mem_block_num = MEM_BLOCK_NUM; 
         rmt_tx.clk_div = DIVIDER;
         rmt_tx.tx_config.loop_en = false;
@@ -222,33 +294,32 @@ void ESP32RMTController::init()
         rmt_tx.tx_config.idle_output_en = true;
 
         // -- Apply the configuration
-        // warning: using more than MEM_BLOCK_NUM 1 means sometimes this might fail because
-        // we don't have enough MEM_BLOCKs. Todo: add code to track and only allocate as many channels
-        // as we have memblocks.
         ESP_ERROR_CHECK( rmt_config(&rmt_tx) );
 
         if (FASTLED_RMT_BUILTIN_DRIVER) {
-            ESP_ERROR_CHECK( rmt_driver_install(rmt_channel_t(i), 0, 0) );
-        } else {
+            ESP_ERROR_CHECK( rmt_driver_install(rmt_channel, 0, 0) );
+        } 
+        else {
+
             // -- Set up the RMT to send 32 bits of the pulse buffer and then
             //    generate an interrupt. When we get this interrupt we
             //    fill the other part in preparation (like double-buffering)
-            ESP_ERROR_CHECK( rmt_set_tx_thr_intr_en(rmt_channel_t(i), true, PULSES_PER_FILL) );
+#if USE_FASTLED_RMT_FNS
+            ESP_ERROR_CHECK( fastled_set_tx_thr_intr_en(rmt_channel, true, PULSES_PER_FILL) );
+#else
+            ESP_ERROR_CHECK( rmt_set_tx_thr_intr_en(rmt_channel, true, PULSES_PER_FILL) );
+#endif
+
         }
     }
 
-    // -- Create a semaphore to block execution until all the controllers are done
-    if (gTX_sem == NULL) {
-        gTX_sem = xSemaphoreCreateBinary();
-        xSemaphoreGive(gTX_sem);
-    }
-                
-    if ( ! FASTLED_RMT_BUILTIN_DRIVER) {
+    if ( ! FASTLED_RMT_BUILTIN_DRIVER ) {
         // -- Allocate the interrupt if we have not done so yet. This
         //    interrupt handler must work for all different kinds of
         //    strips, so it delegates to the refill function for each
         //    specific instantiation of ClocklessController.
         if (gRMT_intr_handle == NULL) {
+
             ESP_ERROR_CHECK(
                 esp_intr_alloc(ETS_RMT_INTR_SOURCE, ESP_INTR_FLAG_IRAM | ESP_INTR_FLAG_LEVEL3, interruptHandler, 0, &gRMT_intr_handle)
             );
@@ -286,24 +357,15 @@ void ESP32RMTController::showPixels()
 
         // -- First, fill all the available channels
         int channel = 0;
-        while (channel < FASTLED_RMT_MAX_CHANNELS && gNext < gNumControllers) {
+        while ( (channel < FASTLED_RMT_MAX_CHANNELS) && (gNext < gNumControllers) ) {
+
             ESP32RMTController::startNext(channel);
-            // -- Important: when we use more than one memory block, we need to 
-            // skip the channels that would otherwise overlap in memory. SZG
-            channel += MEM_BLOCK_NUM;
+
+            channel++;
         }
 
         // -- Make sure it's been at least 50us since last show
         gWait.wait();
-
-        // -- Start them all
-        /* This turns out to be a bad idea. We don't want all of the interrupts
-           coming in at the same time.
-        for (int i = 0; i < channel; i++) {
-            ESP32RMTController * pController = gControllers[i];
-            pController->tx_start();
-        }
-        */
 
         // -- Wait here while the data is sent. The interrupt handler
         //    will keep refilling the RMT buffers until it is all
@@ -358,12 +420,12 @@ void ESP32RMTController::startNext(int channel)
 void ESP32RMTController::startOnChannel(int channel)
 {
 
-    // -- Assign this channel and configure the RMT
-    mRMT_channel = rmt_channel_t(channel);
-
     // -- Store a reference to this controller, so we can get it
     //    inside the interrupt handler
     gOnChannel[channel] = this;
+
+    // the RMT channel depends on the MEM_BLOCK
+    mRMT_channel = rmt_channel_t(channel * MEM_BLOCK_NUM);
 
     // -- Assign the pin to this channel
     rmt_set_pin(mRMT_channel, RMT_MODE_TX, mPin);
@@ -387,7 +449,11 @@ void ESP32RMTController::startOnChannel(int channel)
         fillNext();
 
         // -- Turn on the interrupts
+#if USE_FASTLED_RMT_FNS
+        fastled_set_tx_intr_en(mRMT_channel, true);
+#else
         rmt_set_tx_intr_en(mRMT_channel, true);
+#endif
 
         // -- Kick off the transmission
         tx_start();
@@ -399,7 +465,12 @@ void ESP32RMTController::startOnChannel(int channel)
 //    Setting this RMT flag is what actually kicks off the peripheral
 void ESP32RMTController::tx_start()
 {
+#if USE_FASTLED_RMT_FNS
+    fastled_tx_start(mRMT_channel, true);
+#else
     rmt_tx_start(mRMT_channel, true);
+#endif
+
     mLastFill = __clock_cycles();
 
 }
@@ -514,11 +585,11 @@ bool IRAM_ATTR ESP32RMTController::timingOk() {
         mCur = mSize;
 
         // other code also set some zeros to make sure there wasn't anything bad.
-        rmt_set_mem_owner(mRMT_channel, RMT_MEM_OWNER_SW);
+        fastled_set_mem_owner(mRMT_channel, RMT_MEM_OWNER_SW);
         for (uint32_t j = 0; j < PULSES_PER_FILL; j++) {
             * mRMT_mem_ptr++ = 0;
         }
-        rmt_set_mem_owner(mRMT_channel, RMT_MEM_OWNER_HW);
+        fastled_set_mem_owner(mRMT_channel, RMT_MEM_OWNER_HW);
 
         return false;
     }
@@ -550,7 +621,7 @@ void IRAM_ATTR ESP32RMTController::fillNext()
         volatile register uint32_t * pItem =  mRMT_mem_ptr;
 
         // set the owner to SW --- current driver does this but its not clear it matters
-        rmt_set_mem_owner(mRMT_channel, RMT_MEM_OWNER_SW);
+        fastled_set_mem_owner(mRMT_channel, RMT_MEM_OWNER_SW);
             
         // Shift bits out, MSB first, setting RMTMEM.chan[n].data32[x] to the 
         // rmt_item32_t value corresponding to the buffered bit value
@@ -583,18 +654,18 @@ void IRAM_ATTR ESP32RMTController::fillNext()
         mRMT_mem_ptr = pItem;
 
         // set the owner back to HW
-        rmt_set_mem_owner(mRMT_channel, RMT_MEM_OWNER_HW);
+        fastled_set_mem_owner(mRMT_channel, RMT_MEM_OWNER_HW);
 
         // update the time I last filled
         mLastFill = __clock_cycles();
 
     } else {
         // -- No more data; signal to the RMT we are done
-        rmt_set_mem_owner(mRMT_channel, RMT_MEM_OWNER_SW);
+        fastled_set_mem_owner(mRMT_channel, RMT_MEM_OWNER_SW);
         for (uint32_t j = 0; j < PULSES_PER_FILL; j++) {
             * mRMT_mem_ptr++ = 0;
         }
-        rmt_set_mem_owner(mRMT_channel, RMT_MEM_OWNER_HW);
+        fastled_set_mem_owner(mRMT_channel, RMT_MEM_OWNER_HW);
     }
 }
 
