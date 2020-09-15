@@ -684,14 +684,20 @@ void IRAM_ATTR ESP32RMTController::fillNext()
 //    This function is only used when the built-in RMT driver is chosen
 void ESP32RMTController::initPulseBuffer(int size_in_bytes)
 {
-    if (mBuffer == 0) {
-        // -- Each byte has 8 bits, each bit needs a 32-bit RMT item
-        mBufferSize = size_in_bytes * 8 * 4;
 
-        mBuffer = (rmt_item32_t *) calloc( mBufferSize, sizeof(rmt_item32_t));
-
-    }
     mCurPulse = 0;
+
+    // maybe we already have a buffer of the right size, it's likely
+    if (mBuffer && (mBufferSize == size_in_bytes * 8))
+        return;
+
+    if (mBuffer) { free(mBuffer); mBuffer = 0; }
+
+    // -- Each byte has 8 bits, each bit needs a 32-bit RMT item
+    mBufferSize = size_in_bytes * 8;
+
+    mBuffer = (rmt_item32_t *) calloc( mBufferSize, sizeof(rmt_item32_t) );
+
 }
 
 // -- Convert a byte into RMT pulses
@@ -700,7 +706,7 @@ void ESP32RMTController::convertByte(uint32_t byteval)
 {
     // -- Write one byte's worth of RMT pulses to the big buffer
     byteval <<= 24;
-    for (register uint32_t j = 0; j < 8; j++) {
+    for (uint32_t j = 0; j < 8; j++) {
         mBuffer[mCurPulse] = (byteval & 0x80000000L) ? mOne : mZero;
         byteval <<= 1;
         mCurPulse++;
