@@ -4,11 +4,10 @@
 
 This port of FastLED 3.3 runs under the 4.x ESP-IDF development environment. Enjoy.
 
-MASSIVE UPDATE Sept 4, 2020. Even after porting Sam Guyer's branch in July, I still
-had a huge amount of visual artifacts. I've done a huge analysis and have licked the issue to my
-satisfaction, and can say the system simply doesn't glitch.
-
-UPDATE 2 Sept 11, 2020. Added the WS2812FX pattern library, see below.
+Updates: Aug, Sept 2020: 
+- RMT interface well tested. 
+- WS2812FX library ported and working.
+- I2S hardware working ( see below )
 
 There are some new tunables, and if you're also fighting glitches, you need to read `components/FastLED-idf/ESP-IDF.md`.
 
@@ -53,6 +52,17 @@ Playing around, there are "a lot of nice libraries on FastLED", but each and eve
 requires porting. At least, now there's a single one to start with. See the underlying component,
 and use it or not. If you don't want it, just don't bring that component over into your project.
 
+# I2S vs RMT
+
+At first, I focused the port on RMT, as it seemed the hardware everyone talked about. As you see
+below, the RMT interface even has a Espressif provided example! Thus the journey of getting the MEM_BUFS
+code working and soak up the interrupt latency.
+
+But, the I2S hardware is almost certainly cooler than RMT. It has more parallelism, and less code.
+
+Right now, the code is still checked in with default RMT simply because I haven't tested I2S as much,
+but please see the I2S section below on enabling it.
+
 # TL;DR about this repo
 
 As with any ESP-IDF project, there is a sdkconfig file. It contains things that might
@@ -80,7 +90,7 @@ and using a 4-pin package isn't so cool as an 8 pin package, since an ESP32 can 
 8 channels. That's SN74HCT245N , and they're to be had from Digikey at $0.60. Read the datasheet
 carefully and get the direction and the enable pins right - they can't float.
 
-# Use of ESP32 hardware (RMT) for 3 wire LEDs
+# Use of ESP32 RMT hardware for 3 wire LEDs
 
 The ESP32 has an interesting module, called RMT. It's a module that's
 meant to make arbitrary waveforms on pins, without having to bang each pin at
@@ -114,6 +124,22 @@ Essentially, if you have the Driver turned on, you shouldn't use the direct mode
 and if you want to use the direct mode, you should turn off the driver.
 
 No extra commands in `menuconfig` seem necessary.
+
+# Use of ESP32 I2S hardware for 3 wire LEDs
+
+## TL;DR enable it
+
+There's a `#define` at the top of fastled.h which chooses I2S or RMT. Switch to I2S.
+
+Comment out `"platforms/esp/32/clockless_rmt_esp32.cpp"` from `components\FastLED-idf\CMakeLists.txt`
+
+You need to remove the RMT file from the compile because you don't want to waste RAM, and there
+are colliding symbols. You can't use both because there's no current way to define which strings
+use which hardware.
+
+## Which to use?
+
+Not sure yet. Going to play with it on different builds and see what works.
 
 # Four wire LEDs ( APA102 and similar )
 

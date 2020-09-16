@@ -13,6 +13,7 @@ set(srcs
 		"wiring.cpp"
 		"hal/esp32-hal-misc.c"
 		"hal/esp32-hal-gpio.c"
+# remove the following if you want I2S instead of RMT hardware, just put a pound in front
 		"platforms/esp/32/clockless_rmt_esp32.cpp"
 		)
 

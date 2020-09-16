@@ -86,7 +86,8 @@
 
 #pragma once
 
-#pragma message "NOTE: ESP32 support using I2S parallel driver. All strips must use the same chipset"
+// This is way too noisy. Is output a LARGE NUMBER of times.
+// #pragma message "NOTE: ESP32 support using I2S parallel driver. All strips must use the same chipset"
 
 FASTLED_NAMESPACE_BEGIN
 
@@ -95,6 +96,10 @@ extern "C" {
 #endif
     
 #include "esp_heap_caps.h"
+#include "esp_intr_alloc.h"
+#include "freertos/task.h"
+#include "freertos/semphr.h"
+
 #include "soc/soc.h"
 #include "soc/gpio_sig_map.h"
 #include "soc/i2s_reg.h"
@@ -102,8 +107,8 @@ extern "C" {
 #include "soc/io_mux_reg.h"
 #include "driver/gpio.h"
 #include "driver/periph_ctrl.h"
-#include "rom/lldesc.h"
-#include "esp_intr_alloc.h"
+#include "esp32/rom/lldesc.h"
+
 #include "esp_log.h"
     
 #ifdef __cplusplus
@@ -131,7 +136,7 @@ __attribute__ ((always_inline)) inline static uint32_t __clock_cycles() {
 
 // -- I2S clock
 #define I2S_BASE_CLK (80000000L)
-#define I2S_MAX_CLK (20000000L) //more tha a certain speed and the I2s looses some bits
+#define I2S_MAX_CLK (20000000L) //more tha a certain speed and the I2s loses some bits
 #define I2S_MAX_PULSE_PER_BIT 20 //put it higher to get more accuracy but it could decrease the refresh rate without real improvement
 // -- Convert ESP32 cycles back into nanoseconds
 #define ESPCLKS_TO_NS(_CLKS) (((long)(_CLKS) * 1000L) / F_CPU_MHZ)
@@ -262,16 +267,16 @@ protected:
     static void initBitPatterns()
     {
         // Precompute the bit patterns based on the I2S sample rate
-        // Serial.println("Setting up fastled using I2S");
+        // println("Setting up fastled using I2S");
 
         // -- First, convert back to ns from CPU clocks
         uint32_t T1ns = ESPCLKS_TO_NS(T1);
         uint32_t T2ns = ESPCLKS_TO_NS(T2);
         uint32_t T3ns = ESPCLKS_TO_NS(T3);
         
-        // Serial.print("T1 = "); Serial.print(T1); Serial.print(" ns "); Serial.println(T1ns);
-        // Serial.print("T2 = "); Serial.print(T2); Serial.print(" ns "); Serial.println(T2ns);
-        // Serial.print("T3 = "); Serial.print(T3); Serial.print(" ns "); Serial.println(T3ns);
+        // print("T1 = "); print(T1); print(" ns "); println(T1ns);
+        // print("T2 = "); print(T2); print(" ns "); println(T2ns);
+        // print("T3 = "); print(T3); print(" ns "); println(T3ns);
         
         /*
          We calculate the best pcgd to the timing
@@ -287,21 +292,21 @@ protected:
         if(smallest>T3)
             smallest=T3;
         double freq=(double)1/(double)(T1ns + T2ns + T3ns);
-        // Serial.printf("chipset frequency:%f Khz\n", 1000000L*freq);
-       // Serial.printf("smallest %d\n",smallest);
+        // printf("chipset frequency:%f Khz\n", 1000000L*freq);
+       // printf("smallest %d\n",smallest);
         int pgc_=1;
         int precision=0;
         pgc_=pgcd(smallest,precision,T1,T2,T3);
-        //Serial.printf("%f\n",I2S_MAX_CLK/(1000000000L*freq));
+        //printf("%f\n",I2S_MAX_CLK/(1000000000L*freq));
         while(pgc_==1 ||  (T1/pgc_ +T2/pgc_ +T3/pgc_)>I2S_MAX_PULSE_PER_BIT) //while(pgc_==1 ||  (T1/pgc_ +T2/pgc_ +T3/pgc_)>I2S_MAX_CLK/(1000000000L*freq))
         {
             precision++;
             pgc_=pgcd(smallest,precision,T1,T2,T3);
-            //Serial.printf("%d %d\n",pgc_,(a+b+c)/pgc_);
+            //printf("%d %d\n",pgc_,(a+b+c)/pgc_);
         }
         pgc_=pgcd(smallest,precision,T1,T2,T3);
-        // Serial.printf("pgcd %d precision:%d\n",pgc_,precision);
-        // Serial.printf("nb pulse per bit:%d\n",T1/pgc_ +T2/pgc_ +T3/pgc_);
+        // printf("pgcd %d precision:%d\n",pgc_,precision);
+        // printf("nb pulse per bit:%d\n",T1/pgc_ +T2/pgc_ +T3/pgc_);
         gPulsesPerBit=(int)T1/pgc_ +(int)T2/pgc_ +(int)T3/pgc_;
         /*
          we calculate the duration of one pulse nd htre base frequency of the led
@@ -312,7 +317,7 @@ protected:
          */
 
         freq=1000000000L*freq*gPulsesPerBit;
-        // Serial.printf("needed frequency (nbpiulse per bit)*(chispset frequency):%f Mhz\n",freq/1000000);
+        // printf("needed frequency (nbpiulse per bit)*(chispset frequency):%f Mhz\n",freq/1000000);
         
         /*
          we do calculate the needed N a and b
@@ -321,7 +326,7 @@ protected:
          
          */
         
-         CLOCK_DIVIDER_N=(int)((double)I2S_BASE_CLK/freq);
+        CLOCK_DIVIDER_N=(int)((double)I2S_BASE_CLK/freq);
         double v=I2S_BASE_CLK/freq-CLOCK_DIVIDER_N;
 
         double prec=(double)1/63;
@@ -362,23 +367,23 @@ protected:
         }
         
         //printf("%d %d %f %f %d\n",CLOCK_DIVIDER_B,CLOCK_DIVIDER_A,(double)CLOCK_DIVIDER_B/CLOCK_DIVIDER_A,v,CLOCK_DIVIDER_N);
-        //Serial.printf("freq %f %f\n",freq,I2S_BASE_CLK/(CLOCK_DIVIDER_N+(double)CLOCK_DIVIDER_B/CLOCK_DIVIDER_A));
+        //printf("freq %f %f\n",freq,I2S_BASE_CLK/(CLOCK_DIVIDER_N+(double)CLOCK_DIVIDER_B/CLOCK_DIVIDER_A));
         freq=1/(CLOCK_DIVIDER_N+(double)CLOCK_DIVIDER_B/CLOCK_DIVIDER_A);
         freq=freq*I2S_BASE_CLK;
-        // Serial.printf("calculted for i2s frequency:%f Mhz N:%d B:%d A:%d\n",freq/1000000,CLOCK_DIVIDER_N,CLOCK_DIVIDER_B,CLOCK_DIVIDER_A);
+        // printf("calculted for i2s frequency:%f Mhz N:%d B:%d A:%d\n",freq/1000000,CLOCK_DIVIDER_N,CLOCK_DIVIDER_B,CLOCK_DIVIDER_A);
         // double pulseduration=1000000000/freq;
-        // Serial.printf("Pulse duration: %f ns\n",pulseduration);
+        // printf("Pulse duration: %f ns\n",pulseduration);
         // gPulsesPerBit = (T1ns + T2ns + T3ns)/FASTLED_I2S_NS_PER_PULSE;
         
-        //Serial.print("Pulses per bit: "); Serial.println(gPulsesPerBit);
+        //print("Pulses per bit: "); println(gPulsesPerBit);
         
         //int ones_for_one  = ((T1ns + T2ns - 1)/FASTLED_I2S_NS_PER_PULSE) + 1;
         ones_for_one  = T1/pgc_ +T2/pgc_;
-        //Serial.print("One bit:  target ");
-        //Serial.print(T1ns+T2ns); Serial.print("ns --- ");
-        //Serial.print(ones_for_one); Serial.print(" 1 bits");
-        //Serial.print(" = "); Serial.print(ones_for_one * FASTLED_I2S_NS_PER_PULSE); Serial.println("ns");
-        // Serial.printf("one bit : target %d  ns --- %d  pulses 1 bit = %f ns\n",T1ns+T2ns,ones_for_one ,ones_for_one*pulseduration);
+        //print("One bit:  target ");
+        //print(T1ns+T2ns); print("ns --- ");
+        //print(ones_for_one); print(" 1 bits");
+        //print(" = "); print(ones_for_one * FASTLED_I2S_NS_PER_PULSE); println("ns");
+        // printf("one bit : target %d  ns --- %d  pulses 1 bit = %f ns\n",T1ns+T2ns,ones_for_one ,ones_for_one*pulseduration);
         
         
         int i = 0;
@@ -393,11 +398,11 @@ protected:
         
         //int ones_for_zero = ((T1ns - 1)/FASTLED_I2S_NS_PER_PULSE) + 1;
         ones_for_zero =T1/pgc_  ;
-       // Serial.print("Zero bit:  target ");
-       // Serial.print(T1ns); Serial.print("ns --- ");
-        //Serial.print(ones_for_zero); Serial.print(" 1 bits");
-        //Serial.print(" = "); Serial.print(ones_for_zero * FASTLED_I2S_NS_PER_PULSE); Serial.println("ns");
-        // Serial.printf("Zero bit : target %d ns --- %d pulses  1 bit =   %f ns\n",T1ns,ones_for_zero ,ones_for_zero*pulseduration);
+       // print("Zero bit:  target ");
+       // print(T1ns); print("ns --- ");
+        //print(ones_for_zero); print(" 1 bits");
+        //print(" = "); print(ones_for_zero * FASTLED_I2S_NS_PER_PULSE); println("ns");
+        // printf("Zero bit : target %d ns --- %d pulses  1 bit =   %f ns\n",T1ns,ones_for_zero ,ones_for_zero*pulseduration);
         i = 0;
         while ( i < ones_for_zero ) {
             gZeroBit[i] = 0xFFFFFF00;
@@ -513,8 +518,10 @@ protected:
        
         // -- Allocate i2s interrupt
         SET_PERI_REG_BITS(I2S_INT_ENA_REG(I2S_DEVICE), I2S_OUT_EOF_INT_ENA_V, 1, I2S_OUT_EOF_INT_ENA_S);
-        esp_intr_alloc(interruptSource, 0, // ESP_INTR_FLAG_INTRDISABLED | ESP_INTR_FLAG_LEVEL3,
-                       &interruptHandler, 0, &gI2S_intr_handle);
+        ESP_ERROR_CHECK(
+            esp_intr_alloc(interruptSource, 0 /* ESP_INTR_FLAG_INTRDISABLED | ESP_INTR_FLAG_LEVEL3*/,
+                           &interruptHandler, 0, &gI2S_intr_handle)
+        );
         
         // -- Create a semaphore to block execution until all the controllers are done
         if (gTX_sem == NULL) {
@@ -522,7 +529,7 @@ protected:
             xSemaphoreGive(gTX_sem);
         }
         
-        // Serial.println("Init I2S");
+        // println("Init I2S");
         gInitialized = true;
     }
     
@@ -562,8 +569,8 @@ protected:
         // -- Keep track of the number of strips we've seen
         gNumStarted++;
 
-        // Serial.print("Show pixels ");
-        // Serial.println(gNumStarted);
+        // print("Show pixels ");
+        // println(gNumStarted);
         
         // -- The last call to showPixels is the one responsible for doing
         //    all of the actual work
@@ -619,7 +626,7 @@ protected:
      *  from each strip), transpose and encode the bits, and store
      *  them in the DMA buffer for the I2S peripheral to read.
      */
-    static void fillBuffer()
+    static IRAM_ATTR void fillBuffer()
     {
         // -- Alternate between buffers
         volatile uint32_t * buf = (uint32_t *) dmaBuffers[gCurBuffer]->buffer;
@@ -659,7 +666,7 @@ protected:
             // -- Tranpose each array: all the bit 7's, then all the bit 6's, ...
             transpose32(gPixelRow[channel], gPixelBits[channel][0] );
             
-            //Serial.print("Channel: "); Serial.print(channel); Serial.print(" ");
+            //print("Channel: "); print(channel); print(" ");
             for (int bitnum = 0; bitnum < 8; bitnum++) {
                 uint8_t * row = (uint8_t *) (gPixelBits[channel][bitnum]);
                 uint32_t bit = (row[0] << 24) | (row[1] << 16) | (row[2] << 8) | row[3];
@@ -717,9 +724,9 @@ protected:
     static void i2sStart()
     {
         // esp_intr_disable(gI2S_intr_handle);
-        // Serial.println("I2S start");
+        // println("I2S start");
         i2sReset();
-        //Serial.println(dmaBuffers[0]->sampleCount());
+        //println(dmaBuffers[0]->sampleCount());
         i2s->lc_conf.val=I2S_OUT_DATA_BURST_EN | I2S_OUTDSCR_BURST_EN | I2S_OUT_DATA_BURST_EN;
         i2s->out_link.addr = (uint32_t) & (dmaBuffers[0]->descriptor);
         i2s->out_link.start = 1;
@@ -740,7 +747,7 @@ protected:
     
     static void i2sReset()
     {
-        // Serial.println("I2S reset");
+        // println("I2S reset");
         const unsigned long lc_conf_reset_flags = I2S_IN_RST_M | I2S_OUT_RST_M | I2S_AHBM_RST_M | I2S_AHBM_FIFO_RST_M;
         i2s->lc_conf.val |= lc_conf_reset_flags;
         i2s->lc_conf.val &= ~lc_conf_reset_flags;
@@ -764,7 +771,7 @@ protected:
     
     static void i2sStop()
     {
-        // Serial.println("I2S stop");
+        // println("I2S stop");
         esp_intr_disable(gI2S_intr_handle);
         i2sReset();
         i2s->conf.rx_start = 0;
