@@ -5,9 +5,9 @@
 This port of FastLED 3.3 runs under the 4.x ESP-IDF development environment. Enjoy.
 
 Updates: Aug, Sept 2020: 
+- I2S hardware working and now default.
 - RMT interface well tested. 
 - WS2812FX library ported and working.
-- I2S hardware working ( see below )
 
 There are some new tunables, and if you're also fighting glitches, you need to read `components/FastLED-idf/ESP-IDF.md`.
 
@@ -58,10 +58,8 @@ At first, I focused the port on RMT, as it seemed the hardware everyone talked a
 below, the RMT interface even has a Espressif provided example! Thus the journey of getting the MEM_BUFS
 code working and soak up the interrupt latency.
 
-But, the I2S hardware is almost certainly cooler than RMT. It has more parallelism, and less code.
-
-Right now, the code is still checked in with default RMT simply because I haven't tested I2S as much,
-but please see the I2S section below on enabling it.
+But, the I2S hardware is almost certainly better than RMT. It has more parallelism, and less code,
+and seems enormously resistant to glitches. The default is I2S, see below.
 
 # TL;DR about this repo
 
@@ -79,6 +77,8 @@ For master, either use the standard `sdkconfig` or build your own. Remove this o
 and `idf.py menuconfig`, and set whatever paramenters you need. There is
 nothing in this library that's specific to any particular version.
 
+I tend to set the compiler into -O2 mode.
+
 # a note about level shifting
 
 I've now read a lot of reddit posts about people saying "but I hook LEDs up to an Arudino and it works,
@@ -90,7 +90,65 @@ and using a 4-pin package isn't so cool as an 8 pin package, since an ESP32 can 
 8 channels. That's SN74HCT245N , and they're to be had from Digikey at $0.60. Read the datasheet
 carefully and get the direction and the enable pins right - they can't float.
 
+# Use of ESP32 I2S hardware for 3 wire LEDs
+
+## this is really good
+
+Mid 2019, The following post showed up on reddit:
+https://www.reddit.com/r/FastLED/comments/bjq0sm/new_24way_parallel_driver_for_esp32/
+which announced using I2S hardware instead of RMT hardware that had been used in the past.
+
+I2S hardware is aimed to generate sound, but it can also be configured (as it is in this case)
+to provide a parallel bus interface. It is best understood by reading the Espressif documentation.
+
+https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/i2s.html
+
+What you'll see is there's 12 parallel pins that can be supported with each hardware module,
+and frankly if you need more than 12 way parallelism I worry about you. That should be enough
+for a module of this size.
+
+## Which to use?
+
+From Sam's post: WARNINGS and LIMITATIONS
+
+-- **All strips must use the same clockless chip (e.g., WS2812)**. Due to the way the I2S peripheral works, it would be much more complicated to drive strips that have different timing parameters, so we punted on it. If you need to use multiple strips with different chips, use the default RMT-base driver.
+
+-- Yves has written some mad code to compute the various clock dividers, so that the output is timing-accurate. If you see timing problems, however, let us know.
+
+-- This is new software. We tested it on our machines. If you find bugs or other issues, please let us know!
+
+Of course, new in 2019 is not so new now :-).
+
+I have set the default to I2S, because it ran all of my torture tests immediately and flawlessly.
+I am somewhat unclear why it's so good. It's hard to suss out how deep the DMA queue is at a glance in time,
+and it seems that the interupt handler might be running at a different priority. I don't know
+if I can argue that it's doing less work. Since it's written for audio, there might be more
+attention paid to the driver.
+
+Obviously, if you need the I2S hardware for something else, you'll want RMT, but there are two I2S components
+on an ESP32 and one on a ESP32-S2. The other uses of I2S include ( according to the documentation ) LCD
+master transmitting mode, camera slave receiving mode, and ADC / DAC mode ( feed directly to the DAC for output ).
+
+You can still fall back to RMT, see below.
+
+## the code is a little inscrutable
+
+The I2S code uses the underlying hardware interface ( `ll` ) fast and furious. For this reason, nothing
+you see in the official documentation about I2S matches what the code is written to. Just to beware.
+
 # Use of ESP32 RMT hardware for 3 wire LEDs
+
+## Cookbook - enable it
+
+There's a `#define` at the top of fastled.h which chooses I2S or RMT. Switch to RMT by commenting out.
+
+Comment back in `"platforms/esp/32/clockless_rmt_esp32.cpp"` from `components\FastLED-idf\CMakeLists.txt`
+
+To compile the default I2S, you need to remove the RMT file from the compile because you don't want to waste RAM, 
+and there are colliding symbols. You can't use both because there's no current way to define which strings
+use which hardware. If there was a new interface, you'd fix the colliding symbols and enable both.
+
+## background
 
 The ESP32 has an interesting module, called RMT. It's a module that's
 meant to make arbitrary waveforms on pins, without having to bang each pin at
@@ -117,29 +175,9 @@ The FastLED ESP32 RMT use has two modes: one which uses the "driver", and
 one which doesn't, and claims to be more efficient due to when it's converting
 between LED RGB and not. 
 
-Whether you can use the "direct" mode or not depends on whether you have other
-users of the RMT driver within ESP-IDF.
+The ESP-IDF driver does support a `translate` mode which would be the same as what
+the internal mode does.
 
-Essentially, if you have the Driver turned on, you shouldn't use the direct mode,
-and if you want to use the direct mode, you should turn off the driver.
-
-No extra commands in `menuconfig` seem necessary.
-
-# Use of ESP32 I2S hardware for 3 wire LEDs
-
-## TL;DR enable it
-
-There's a `#define` at the top of fastled.h which chooses I2S or RMT. Switch to I2S.
-
-Comment out `"platforms/esp/32/clockless_rmt_esp32.cpp"` from `components\FastLED-idf\CMakeLists.txt`
-
-You need to remove the RMT file from the compile because you don't want to waste RAM, and there
-are colliding symbols. You can't use both because there's no current way to define which strings
-use which hardware.
-
-## Which to use?
-
-Not sure yet. Going to play with it on different builds and see what works.
 
 # Four wire LEDs ( APA102 and similar )
 
@@ -148,8 +186,11 @@ the clock and data lines have to be controled together ( duh ),
 and the RMT interface doesn't do that. What does do that is the SPI
 interface, and I don't think I've wired that up.
 
-There are two hardware SPI ports in the system, so that should be
-able to be enabled. Work to do.
+The I2S interface, on the other hand, appears synchronized. I think you could
+write an APA102 driver using I2S and it would be fast and happy.
+
+However, simply doing hardware SPI using the single SPI driver should be good enough.
+Work to do.
 
 Since hardware banging is used ( that's the big ugly warning ),
 these LEDs are very likely far slower, and probably do not respond to parallelism
@@ -210,15 +251,6 @@ Within menuconfig, I tend to use the following settings. Minimum required silico
 are speed workarounds at Rev0 that get compiled in. I change the compiler options to -O2 instead of -Os or -Og.
 Default flash size to 4M, because all the devices I have are 4G.
 
-Second of all, there be some dragons in the different versions.
-
-The FastLed RMT code runs in two different modes - it either uses an onboard driver, or it uses the ESP-IDF RMT driver.
-I've found that if you use the driver that was originally written for FastLED, it works great with ESP-IDF 4.0,
-but crashes horribly in 4.2 and master. These are interesting branches because the new S2 version of the ESP32
-chip requires those branches.
-
-It's quite possible that more and more changes will creep in, or that someone will find the flaw that's causing 4.2
-to crash.
 
 # A short plug for Microsoft's WSL
 
@@ -251,17 +283,21 @@ There is an example of LED control, using the RMT interface directly.
 If you just want to it like that, without all the cool stuff in FastLED,
 be everyone's guest!
 
+Interestingly, the LED library uses RMT, has glitches just like the older versions of RMT
+that FastLED had, and don't support I2S which is far more stable.
+
 I did reach out to Espressif. I think they should include or have a FastLED port.
 In their forums, they said they don't intend to do anything like that.
 
 ## SamGuyer's fork
 
-According to a reddit post, someone named Sam Guyer fixed the issues with FastLED. There are
-a number of fundamental problems that Sam has been gnawing on, notably the access to flash
-that happens when you 'read files'. His fork was my starting point.
+When I started on this journey, I read a series of Reddit posts saying that Sam's
+FastLED port was the best for ESP32. It used RMT by default, and it still glitched
+a lot, which put me down the path of doing major work on the RMT code
+and finding the fundamental issue which he backported.
 
-However, I found that the primarily issue with visual artifacts in RMT had to do with
-the amount of ESP-IDF jitter. 
+The code for the I2S driver, however, just came over peachy, and once I enabled it,
+the entire system was far more stable.
 
 Kudos to Sam for getting the code to a better point, where it was amenable to the optimizations
 I did.
@@ -274,6 +310,9 @@ There is no reason to have ones own ISR. The ESP-IDF system has a 'translator', 
 is a function which will take pixel bytes to RMT buffers. This is the structure of the 
 code already, so the entire ISR can be removed. This functionality is not in the Arduino
 implementation of RMT, which is why its not used here yet.
+
+However, now that one has the I2S code, I would think improving the RMT code is
+a low priority.
 
 # Updating
 
@@ -314,7 +353,7 @@ and still, potentially, have the ability to do some extra work, because you've g
 I have not determined if this is using the RMT interface, which would mean we could 
 use an async internal interface. The timing, however, is very solid.
 
-# Use notes
+# Use(age) notes
 
 What I like about using FreeRTOS and a more interesting development environment is
 you should be able to use more of the CPU for other things. Essentially, you should
@@ -339,7 +378,9 @@ that would be under MIT license.
 
 I am honestly not sure what happens to LGPL in this case. It's a component in an
 embedded system, which is morally a library, but it is clearly very statically
-linked.
+linked and in the "application", which I think would generate a copy-left. OTOH,
+that would also mean that ESP-IDF is all GPL and copy-left, and Espressif
+doesn't seem to think so ... whatever.
 
 I don't intend to make any money off this, don't charge people, and do not intend
 the use for commercial art projects, so the use is safe for me. But don't say
@@ -482,10 +523,6 @@ Note: what's up with registering the driver? I should, right? Make sure that's d
 menuconfig? Doen't seem to be. There are no settings anywhere in the menuconfig regarding
 gpio. Should probably look at the examples to see if I have to enable the ISR or something.
 
-## using RMT vs I2S
-
-Note to self: There is a define in the platforms area that lets a person choose.
-
 ## GCC 8 memcpy and memmove into complex structures
 
 ```
@@ -559,9 +596,8 @@ gpio.c out of the hal compile.
 
 The code in ESP-IDF seems to really like using the pattern of having a macro for a
 default constructor. In the case of initializing the RMT structure, if I did it "by hand"
-and used the -O2 compile option, I got instability. When I switched to using their
-constructure, which seems the same to me generally, I get a stable build. I
-now wonder if this was some of the issue around not using the IRQ....
+and used the -O2 compile option, I got instability. The code is now written to 
+do different things in different versions.
 
 ## issues regarding ESP-IDF 4.1 and private interrupt handler
 

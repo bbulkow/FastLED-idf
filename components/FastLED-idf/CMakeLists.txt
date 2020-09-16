@@ -14,7 +14,7 @@ set(srcs
 		"hal/esp32-hal-misc.c"
 		"hal/esp32-hal-gpio.c"
 # remove the following if you want I2S instead of RMT hardware, just put a pound in front
-		"platforms/esp/32/clockless_rmt_esp32.cpp"
+#		"platforms/esp/32/clockless_rmt_esp32.cpp"
 		)
 
 # everything needs the ESP32 flag, not sure why this won't work

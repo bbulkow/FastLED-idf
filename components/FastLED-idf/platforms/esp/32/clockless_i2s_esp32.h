@@ -519,7 +519,9 @@ protected:
         // -- Allocate i2s interrupt
         SET_PERI_REG_BITS(I2S_INT_ENA_REG(I2S_DEVICE), I2S_OUT_EOF_INT_ENA_V, 1, I2S_OUT_EOF_INT_ENA_S);
         ESP_ERROR_CHECK(
-            esp_intr_alloc(interruptSource, 0 /* ESP_INTR_FLAG_INTRDISABLED | ESP_INTR_FLAG_LEVEL3*/,
+            // this seems to work great with the default 0 flag, but everything is in IRAM
+            // so why not raise it a little? Because you'll get a panic, and I'm not sure why.
+            esp_intr_alloc(interruptSource, 0 /* ESP_INTR_FLAG_IRAM | ESP_INTR_FLAG_LEVEL2 */,
                            &interruptHandler, 0, &gI2S_intr_handle)
         );
         
