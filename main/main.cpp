@@ -35,6 +35,47 @@ extern const TProgmemPalette16 IRAM_ATTR myRedWhiteBluePalette_p;
 CRGB leds1[NUM_LEDS];
 CRGB leds2[NUM_LEDS];
 
+#define N_COLORS 17
+static const CRGB colors[N_COLORS] = { 
+  CRGB::Red,
+  CRGB::Green,
+  CRGB::Blue,
+  CRGB::White,
+  CRGB::AliceBlue,
+  CRGB::ForestGreen,
+  CRGB::Lavender,
+  CRGB::MistyRose,
+  CRGB::DarkOrchid,
+  CRGB::DarkOrange,
+  CRGB::Black,
+  CRGB::Teal,
+  CRGB::Violet,
+  CRGB::Lime,
+  CRGB::Chartreuse,
+  CRGB::BlueViolet,
+  CRGB::Aqua
+};
+
+static const char *colors_names[N_COLORS] {
+  "Red",
+  "Green",
+  "Blue",
+  "White",
+  "aliceblue",
+  "ForestGreen",
+  "Lavender",
+  "MistyRose",
+  "DarkOrchid",
+  "DarkOrange",
+  "Black",
+  "Teal",
+  "Violet",
+  "Lime",
+  "Chartreuse",
+  "BlueViolet",
+  "Aqua"
+};
+
 extern "C" {
   void app_main();
 }
@@ -43,7 +84,7 @@ extern "C" {
 **
 */
 
-static void blinkWithFx(void *pvParameters) {
+static void blinkWithFx_allpatterns(void *pvParameters) {
 
 	uint16_t mode = FX_MODE_STATIC;
 
@@ -72,7 +113,135 @@ static void blinkWithFx(void *pvParameters) {
 	}
 };
 
+/* test specific patterns so we know FX is working right
+**
+*/
 
+typedef struct {
+  const char *name;
+  int   mode;
+  int   secs; // secs to test it
+  uint32_t color;
+  int speed;
+} testModes_t;
+
+
+static const testModes_t testModes[] = {
+  { "color wipe: all leds after each other up. Then off. Repeat. RED", FX_MODE_COLOR_WIPE, 5, 0xFF0000, 1000 },
+  { "color wipe: all leds after each other up. Then off. Repeat. RGREE", FX_MODE_COLOR_WIPE, 5, 0x00FF00, 1000 },
+  { "color wipe: all leds after each other up. Then off. Repeat. Blu", FX_MODE_COLOR_WIPE, 5, 0x0000FF, 1000 },
+  { "chase rainbow: Color running on white.", FX_MODE_CHASE_RAINBOW, 10, 0xffffff, 200 },
+  { "breath, on white.", FX_MODE_BREATH, 5, 0xffffff, 100 },
+  { "breath, on red.", FX_MODE_BREATH, 5, 0xff0000, 100 },
+  { "what is twinkefox? on red?", FX_MODE_TWINKLEFOX, 20, 0xff0000, 2000 },
+};
+
+#define TEST_MODES_N ( sizeof(testModes) / sizeof(testModes_t))
+
+static void blinkWithFx_test(void *pvParameters) {
+
+  WS2812FX ws2812fx;
+  WS2812FX::Segment *segments = ws2812fx.getSegments();
+
+  ws2812fx.init(NUM_LEDS, leds1, false); // type was configured before
+  ws2812fx.setBrightness(255);
+
+  int test_id = 0;
+  printf(" start mode: %s\n",testModes[test_id].name);
+  ws2812fx.setMode(0 /*segid*/, testModes[test_id].mode);
+  segments[0].colors[0] = testModes[test_id].color;
+  segments[0].speed = testModes[test_id].speed;
+  uint64_t nextMode = esp_timer_get_time() + (testModes[test_id].secs * 1000000L );
+
+
+  while (true) {
+
+    uint64_t now = esp_timer_get_time();
+
+    if (nextMode < now ) {
+      test_id = (test_id +1) % TEST_MODES_N;
+      nextMode = esp_timer_get_time() + (testModes[test_id].secs * 1000000L );
+      ws2812fx.setMode(0 /*segid*/, testModes[test_id].mode);
+      segments[0].colors[0] = testModes[test_id].color;
+      segments[0].speed = testModes[test_id].speed;
+      printf(" changed mode to: %s\n",testModes[test_id].name);
+    }
+
+    ws2812fx.service();
+    vTaskDelay(10 / portTICK_PERIOD_MS); /*10ms*/
+  }
+};
+
+
+/*
+** chase sequences are good for testing correctness, because you can see
+** that the colors are correct, and you can see cases where the wrong pixel is lit.
+*/
+
+#define CHASE_DELAY 200
+
+void blinkLeds_chase2(void *pvParameters) {
+
+  while(true) {
+
+    for (int ci = 0; ci < N_COLORS; ci++) {
+      CRGB color = colors[ci];
+      printf(" chase: *** color %s ***\n",colors_names[ci]);
+
+      // set strings to black first
+      fill_solid(leds1, NUM_LEDS, CRGB::Black);
+      fill_solid(leds2, NUM_LEDS, CRGB::Black);
+      FastLED.show();
+
+      int prev;
+
+      // forward
+      printf(" chase: forward\n");
+      prev = -1;
+      for (int i = 0; i < NUM_LEDS; i++) {
+        if (prev >= 0) {
+          leds2[prev] = leds1[prev] = CRGB::Black;
+        }
+        leds2[i] = leds1[i] = color;
+        prev = i;
+
+        FastLED.show();
+        delay(CHASE_DELAY);
+      }
+
+      printf(" chase: backward\n");
+      prev = -1;
+      for (int i = NUM_LEDS-1; i >= 0; i--) {
+        if (prev >= 0) {
+          leds2[prev] = leds1[prev] = CRGB::Black;
+        }
+        leds2[i] = leds1[i] = color;
+        prev = i;
+
+        FastLED.show();
+        delay(CHASE_DELAY);
+      }
+
+      // two at a time
+      printf(" chase: twofer\n");
+      prev = -1;
+      for (int i = 0; i < NUM_LEDS; i += 2) {
+        if (prev >= 0) {
+          leds2[prev] = leds1[prev] = CRGB::Black;
+          leds2[prev+1] = leds1[prev+1] = CRGB::Black;
+        }
+        leds2[i] = leds1[i] = color;
+        leds2[i+1] = leds1[i+1] = color;
+        prev = i;
+
+        FastLED.show();
+        delay(CHASE_DELAY);
+      }
+
+    } // for all colors
+  } // while true
+
+}
 
 void ChangePalettePeriodically(){
 
@@ -173,26 +342,7 @@ static void fastfade(void *pvParameters){
 
 }
 
-#define N_COLORS 17
-CRGB colors[N_COLORS] = { 
-  CRGB::AliceBlue,
-  CRGB::ForestGreen,
-  CRGB::Lavender,
-  CRGB::MistyRose,
-  CRGB::DarkOrchid,
-  CRGB::DarkOrange,
-  CRGB::Black,
-  CRGB::Red,
-  CRGB::Green,
-  CRGB::Blue,
-  CRGB::White,
-  CRGB::Teal,
-  CRGB::Violet,
-  CRGB::Lime,
-  CRGB::Chartreuse,
-  CRGB::BlueViolet,
-  CRGB::Aqua
-};
+
 
 void blinkLeds_simple(void *pvParameters){
 
@@ -269,6 +419,9 @@ void app_main() {
   printf("create task for led blinking\n");
 
   //xTaskCreatePinnedToCore(&blinkLeds_simple, "blinkLeds", 4000, NULL, 5, NULL, 0);
-  xTaskCreatePinnedToCore(&fastfade, "blinkLeds", 4000, NULL, 5, NULL, 0);
-  //xTaskCreatePinnedToCore(&blinkWithFx, "blinkLeds", 4000, NULL, 5, NULL, 0);
+  //xTaskCreatePinnedToCore(&fastfade, "blinkLeds", 4000, NULL, 5, NULL, 0);
+  //xTaskCreatePinnedToCore(&blinkWithFx_allpatterns, "blinkLeds", 4000, NULL, 5, NULL, 0);
+  xTaskCreatePinnedToCore(&blinkWithFx_test, "blinkLeds", 4000, NULL, 5, NULL, 0);
+  //xTaskCreatePinnedToCore(&blinkLeds_chase, "blinkLeds", 4000, NULL, 5, NULL, 0);
+  //xTaskCreatePinnedToCore(&blinkLeds_chase2, "blinkLeds", 4000, NULL, 5, NULL, 0);
 }
