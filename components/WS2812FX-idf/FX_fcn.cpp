@@ -307,12 +307,14 @@ uint8_t WS2812FX::getPaletteCount()
 
 
 bool WS2812FX::setEffectConfig(uint8_t m, uint8_t s, uint8_t in, uint8_t p) {
+
   uint8_t mainSeg = getMainSegmentId();
   Segment& seg = _segments[getMainSegmentId()];
   uint8_t modePrev = seg.mode, speedPrev = seg.speed, intensityPrev = seg.intensity, palettePrev = seg.palette;
 
   bool applied = false;
   
+  // compile defined as true in FX.h
   if (applyToAllSelected) 
   {
     for (uint8_t i = 0; i < MAX_NUM_SEGMENTS; i++)
@@ -328,14 +330,21 @@ bool WS2812FX::setEffectConfig(uint8_t m, uint8_t s, uint8_t in, uint8_t p) {
     }
   } 
   
-  if (!applyToAllSelected || !applied) {
+  // compiler is claiming this could never be true. Not suer why so leaving the warning
+  if ( (!applyToAllSelected) || (!applied) ) {
     seg.speed = s;
     seg.intensity = in;
     seg.palette = p;
     setMode(mainSegment, m);
   }
   
-  if (seg.mode != modePrev || seg.speed != speedPrev || seg.intensity != intensityPrev || seg.palette != palettePrev) return true;
+  // anything changed?
+  if (seg.mode != modePrev || 
+  	  seg.speed != speedPrev || 
+  	  seg.intensity != intensityPrev || 
+  	  seg.palette != palettePrev) 
+  	return true;
+  
   return false;
 }
 
@@ -720,7 +729,7 @@ CRGB WS2812FX::col_to_crgb(uint32_t color)
 
 void WS2812FX::load_gradient_palette(uint8_t index)
 {
-  uint8_t i = ArduinoConstrain(index, 0, GRADIENT_PALETTE_COUNT -1);
+  uint8_t i = index > (GRADIENT_PALETTE_COUNT - 1) ? index : (GRADIENT_PALETTE_COUNT - 1);
   uint8_t tcp[72]; //support gradient palettes with up to 18 entries
   memcpy(tcp, &(gGradientPalettes[i]), 72);
   targetPalette.loadDynamicGradientPalette(tcp);
