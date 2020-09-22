@@ -205,7 +205,7 @@ class ClocklessController : public CPixelLEDController<RGB_ORDER>
     PixelController<RGB_ORDER> * mPixels;
     
     // -- Make sure we can't call show() too quickly
-    CMinWait<50>   mWait;
+    CMinWait<55>   mWait;
 
  public:
 

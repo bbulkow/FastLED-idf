@@ -31,7 +31,7 @@ static intr_handle_t gRMT_intr_handle = NULL;
 static xSemaphoreHandle gTX_sem = NULL;
 
 // -- Make sure we can't call show() too quickly (fastled library)
-CMinWait<50>   gWait;
+CMinWait<55>   gWait;
 
 static bool gInitialized = false;
 
@@ -355,7 +355,12 @@ void ESP32RMTController::showPixels()
         // -- This Take always succeeds immediately
         xSemaphoreTake(gTX_sem, portMAX_DELAY);
 
-        // -- First, fill all the available channels
+        // -- Make sure it's been at least 50us since last show
+        // this is very conservative if you have multiple channels,
+        // arguably there should be a wait on the startnext of each LED string
+        gWait.wait();
+
+        // -- First, fill all the available channels and start them
         int channel = 0;
         while ( (channel < FASTLED_RMT_MAX_CHANNELS) && (gNext < gNumControllers) ) {
 
@@ -363,9 +368,6 @@ void ESP32RMTController::showPixels()
 
             channel++;
         }
-
-        // -- Make sure it's been at least 50us since last show
-        gWait.wait();
 
         // -- Wait here while the data is sent. The interrupt handler
         //    will keep refilling the RMT buffers until it is all

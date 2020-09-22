@@ -1,6 +1,11 @@
 #ifndef __INC_FL_DELAY_H
 #define __INC_FL_DELAY_H
 
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_timer.h"
+
 #include "FastLED.h"
 
 ///@file fastled_delay.h
@@ -11,18 +16,29 @@ FASTLED_NAMESPACE_BEGIN
 /// Class to ensure that a minimum amount of time has kicked since the last time run - and delay if not enough time has passed yet
 /// this should make sure that chipsets that have
 template<int WAIT> class CMinWait {
-	uint16_t mLastMicros;
+	uint64_t mLastMicros;
 public:
 	CMinWait() { mLastMicros = 0; }
 
 	void wait() {
-		uint16_t diff;
-		do {
-			diff = (micros() & 0xFFFF) - mLastMicros;
-		} while(diff < WAIT);
+		// how long I been waiting
+		uint64_t waited = esp_timer_get_time() - mLastMicros;
+		// fast path, waited long enough
+		if (waited >= WAIT) return;
+		// delay vs spin
+		if ((WAIT - waited) > (portTICK_PERIOD_MS * 1000)) {
+			int tickDelay = ((WAIT - waited) / 1000) / portTICK_PERIOD_MS;
+			//printf("cMinWait: %llu micros means delay %d ticks\n",(WAIT - waited),tickDelay);
+			vTaskDelay( tickDelay );
+		}
+		else { /*buzz is only other option outch */
+			do {
+				waited = esp_timer_get_time() - mLastMicros;
+			} while( waited > WAIT);
+		}
 	}
 
-	void mark() { mLastMicros = micros() & 0xFFFF; }
+	void mark() { mLastMicros = esp_timer_get_time(); }
 };
 
 
