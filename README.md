@@ -59,7 +59,12 @@ below, the RMT interface even has a Espressif provided example! Thus the journey
 code working and soak up the interrupt latency.
 
 But, the I2S hardware is almost certainly better than RMT. It has more parallelism, and less code,
-and seems enormously resistant to glitches. The default is I2S, see below.
+and seems enormously resistant to glitches. 
+
+The default is I2S, see below.
+
+HOWEVER, in my testing, I did find a case where I2S did not work right, and RMT did. I haven't
+tracked that down yet, but you might well try RMT if you notice any pecularities.
 
 # TL;DR about this repo
 
