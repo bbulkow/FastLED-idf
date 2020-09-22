@@ -63,9 +63,6 @@ and seems enormously resistant to glitches.
 
 The default is I2S, see below.
 
-HOWEVER, in my testing, I did find a case where I2S did not work right, and RMT did. I haven't
-tracked that down yet, but you might well try RMT if you notice any pecularities.
-
 # TL;DR about this repo
 
 As with any ESP-IDF project, there is a sdkconfig file. It contains things that might
