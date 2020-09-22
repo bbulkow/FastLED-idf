@@ -153,17 +153,11 @@ void delay(uint32_t ms)
 
 void IRAM_ATTR delayMicroseconds(uint32_t us)
 {
-    uint32_t m = micros();
+    uint64_t now = esp_timer_get_time();
     if(us){
-        uint32_t e = (m + us);
-        if(m > e){ //overflow
-            while(micros() > e){
-                NOP();
-            }
-        }
-        while(micros() < e){
+        do {
             NOP();
-        }
+        } while ((esp_timer_get_time() - now) < us);
     }
 }
 
