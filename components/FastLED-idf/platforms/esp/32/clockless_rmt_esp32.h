@@ -248,7 +248,7 @@ public:
 
     // -- Initialize RMT subsystem
     //    This only needs to be done once
-    static void init();
+    void init();
 
     // -- Show this string of pixels
     //    This is the main entry point for the pixel controller
