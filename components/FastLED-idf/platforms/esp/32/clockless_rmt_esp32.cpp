@@ -276,13 +276,13 @@ void ESP32RMTController::init()
         // NOTE: In ESP-IDF 4.1++, there is a #define to init, but that doesn't exist
         // in earlier versions
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 1, 0)
-        rmt_config_t rmt_tx = RMT_DEFAULT_CONFIG_TX(gpio_num_t(mPin), rmt_channel);
+        rmt_config_t rmt_tx = RMT_DEFAULT_CONFIG_TX(mPin, rmt_channel);
 #else
         rmt_config_t rmt_tx;
         memset((void*) &rmt_tx, 0, sizeof(rmt_tx));
         rmt_tx.channel = rmt_channel;
         rmt_tx.rmt_mode = RMT_MODE_TX;
-        rmt_tx.gpio_num = gpio_num_t(mPin);
+        rmt_tx.gpio_num = mPin;
 #endif
 
         rmt_tx.mem_block_num = MEM_BLOCK_NUM; 
