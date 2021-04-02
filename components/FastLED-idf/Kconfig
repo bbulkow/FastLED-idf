@@ -24,26 +24,29 @@ menu "FastLED"
         default false
         help
 
-    choice FASTLED_ESP32_SPI_BUS_SEL
-        prompt "Hardware SPI bus"
-        default FASTLED_ESP32_SPI_BUS_VSPI
-        depends_on
-        help
-            This driver uses the VSPI bus by default (GPIO 18, 19, 23, & 5).
-            If you need VSPI for other things, select the HSPI bus (GPIO 14, 12, 13, & 15) here.
-            Pin definitions may be different for ESP32-S2/S3/C3/etc.
+    menu "Hardware SPI"
+    visible if FASTLED_ALL_PINS_HARDWARE_SPI
 
-        config FASTLED_ESP32_SPI_BUS_VSPI
-            bool "VSPI bus"
-        config FASTLED_ESP32_SPI_BUS_HSPI
-            bool "HSPI bus"
-    endchoice
+        choice FASTLED_ESP32_SPI_BUS_SEL
+            prompt "Hardware SPI bus"
+            default FASTLED_ESP32_SPI_BUS_VSPI
+            depends_on FASTLED_ALL_PINS_HARDWARE_SPI
+            help
+                This driver uses the VSPI bus by default (GPIO 18, 19, 23, & 5).
+                If you need VSPI for other things, select the HSPI bus (GPIO 14, 12, 13, & 15) here.
+                Pin definitions may be different for ESP32-S2/S3/C3/etc.
 
-    config FASTLED_ESP32_SPI_BUS
-        string
-        default "VSPI" if FASTLED_ESP32_SPI_BUS_VSPI
-        default "HSPI" if FASTLED_ESP32_SPI_BUS_HSPI
+            config FASTLED_ESP32_SPI_BUS_VSPI
+                bool "VSPI bus"
+            config FASTLED_ESP32_SPI_BUS_HSPI
+                bool "HSPI bus"
+        endchoice
 
-    config FASTLED_USE_
+        config FASTLED_ESP32_SPI_BUS
+            string
+            default "VSPI" if FASTLED_ESP32_SPI_BUS_VSPI
+            default "HSPI" if FASTLED_ESP32_SPI_BUS_HSPI
+
+    endmenu
 
 endmenu
