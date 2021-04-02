@@ -1,10 +1,49 @@
-menu "Fast LED"
+menu "FastLED"
 
-    config FAST_LED_TEST
-        bool "Create a Fast LED option in case I need to later"
-        default n
+    choice FASTLED_ESP32_DRIVER_MODE
+        prompt "Driver Mode"
+        default FASTLED_ESP32_DRIVER_I2S
         help
-            I don't know if I'm going to have to add menuconfig options in the future.
-            Maybe I will. If I do, this is the template for doing it.
+            FastLED can use the RMT peripheral or I2S peripheral to drive the LEDs.
+            I2S has more accurate timing, lower overheads, and is the recommended choice.
+            Select RMT if you need the I2S peripheral for other purposes, or you just to use RMT.
+
+        config FASTLED_ESP32_DRIVER_I2S
+            bool "I2S peripheral"
+        config FASTLED_ESP32_DRIVER_RMT
+            bool "RMT peripheral"
+    endchoice
+
+    config FASTLED_ESP32_DRIVER
+        string
+        default "i2s" if FASTLED_ESP32_DRIVER_I2S
+        default "rmt" if FASTLED_ESP32_DRIVER_RMT
+
+    config FASTLED_ALL_PINS_HARDWARE_SPI
+        bool "Use hardware SPI for all pins"
+        default false
+        help
+
+    choice FASTLED_ESP32_SPI_BUS_SEL
+        prompt "Hardware SPI bus"
+        default FASTLED_ESP32_SPI_BUS_VSPI
+        depends_on
+        help
+            This driver uses the VSPI bus by default (GPIO 18, 19, 23, & 5).
+            If you need VSPI for other things, select the HSPI bus (GPIO 14, 12, 13, & 15) here.
+            Pin definitions may be different for ESP32-S2/S3/C3/etc.
+
+        config FASTLED_ESP32_SPI_BUS_VSPI
+            bool "VSPI bus"
+        config FASTLED_ESP32_SPI_BUS_HSPI
+            bool "HSPI bus"
+    endchoice
+
+    config FASTLED_ESP32_SPI_BUS
+        string
+        default "VSPI" if FASTLED_ESP32_SPI_BUS_VSPI
+        default "HSPI" if FASTLED_ESP32_SPI_BUS_HSPI
+
+    config FASTLED_USE_
 
 endmenu

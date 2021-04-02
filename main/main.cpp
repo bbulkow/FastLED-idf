@@ -13,6 +13,8 @@
 #include "esp_system.h"
 #include "esp_spi_flash.h"
 
+#include "sdkconfig.h"
+
 #include "FastLED.h"
 #include "FX.h"
 
@@ -26,7 +28,7 @@ extern const TProgmemPalette16 IRAM_ATTR myRedWhiteBluePalette_p;
 
 //#define NUM_LEDS 512
 #define NUM_LEDS 40
-#define DATA_PIN_1 13 
+#define DATA_PIN_1 13
 #define DATA_PIN_2 18
 #define BRIGHTNESS  80
 #define LED_TYPE    WS2811
@@ -36,7 +38,7 @@ CRGB leds1[NUM_LEDS];
 CRGB leds2[NUM_LEDS];
 
 #define N_COLORS 17
-static const CRGB colors[N_COLORS] = { 
+static const CRGB colors[N_COLORS] = {
   CRGB::Red,
   CRGB::Green,
   CRGB::Blue,
@@ -269,10 +271,10 @@ void blinkLeds_interesting(void *pvParameters){
   while(1){
   	printf("blink leds\n");
     ChangePalettePeriodically();
-    
+
     static uint8_t startIndex = 0;
     startIndex = startIndex + 1; /* motion speed */
-    
+
     for( int i = 0; i < NUM_LEDS; i++) {
         leds1[i] = ColorFromPalette( currentPalette, startIndex, 64, currentBlending);
         leds2[i] = ColorFromPalette( currentPalette, startIndex, 64, currentBlending);
@@ -325,7 +327,8 @@ static void fastfade(void *pvParameters){
         .callback = _fastfade_cb,
         .arg = (void *) &ff_t,
         .dispatch_method = ESP_TIMER_TASK,
-        .name = "fastfade_timer"
+        .name = "fastfade_timer",
+        .skip_unhandled_events = 1,
     };
 
   esp_timer_handle_t timer_h;
@@ -362,7 +365,7 @@ void blinkLeds_simple(void *pvParameters){
 };
 
 #define N_COLORS_CHASE 7
-CRGB colors_chase[N_COLORS_CHASE] = { 
+CRGB colors_chase[N_COLORS_CHASE] = {
   CRGB::AliceBlue,
   CRGB::Lavender,
   CRGB::DarkOrange,

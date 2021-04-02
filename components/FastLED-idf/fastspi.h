@@ -29,6 +29,10 @@ FASTLED_NAMESPACE_BEGIN
 //
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#ifdef CONFIG_FASTLED_ALL_PINS_HARDWARE_SPI
+#define FASTLED_ALL_PINS_HARDWARE_SPI
+#endif
+
 #if !defined(FASTLED_ALL_PINS_HARDWARE_SPI)
 template<uint8_t _DATA_PIN, uint8_t _CLOCK_PIN, uint32_t _SPI_CLOCK_DIVIDER>
 class SPIOutput : public AVRSoftwareSPIOutput<_DATA_PIN, _CLOCK_PIN, _SPI_CLOCK_DIVIDER> {};

@@ -8,22 +8,16 @@ FASTLED_NAMESPACE_BEGIN
  *
  * Copyright (c) 2020 Nick Wallace
  * Derived from code for ESP8266 hardware SPI by Benoit Anastay.
- * 
+ *
  * This hardware SPI implementation can drive clocked LEDs from either the
- * VSPI or HSPI bus (aka SPI2 & SPI3). No support is provided for SPI1, because it is 
+ * VSPI or HSPI bus (aka SPI2 & SPI3). No support is provided for SPI1, because it is
  * shared among devices and the cache for data (code) in the Flash as well as the PSRAM.
  *
- * To enable the hardware SPI driver, add the following line *before* including
- * FastLED.h:
+ * To enable the hardware SPI driver, turn it on in menuconfig.
  *
- * #define FASTLED_ALL_PINS_HARDWARE_SPI
+ * This driver uses the VSPI bus by default (GPIO 18, 19, 23, & 5).
+ * To use the HSPI bus (GPIO 14, 12, 13, & 15), select it in menuconfig.
  *
- * This driver uses the VSPI bus by default (GPIO 18, 19, 23, & 5). To use the 
- * HSPI bus (GPIO 14, 12, 13, & 15) add the following line *before* including
- * FastLED.h:
- * 
- * #define FASTLED_ESP32_SPI_BUS HSPI
- * 
  */
 /*
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -45,18 +39,14 @@ FASTLED_NAMESPACE_BEGIN
  * THE SOFTWARE.
  */
 
-#ifndef FASTLED_ESP32_SPI_BUS
-    #define FASTLED_ESP32_SPI_BUS VSPI
-#endif
+SPIClass ledSPI(CONFIG_FASTLED_ESP32_SPI_BUS);
 
-SPIClass ledSPI(FASTLED_ESP32_SPI_BUS);
-
-#if FASTLED_ESP32_SPI_BUS == VSPI
+#if CONFIG_FASTLED_ESP32_SPI_BUS == VSPI
     static uint8_t spiClk = 18;
     static uint8_t spiMiso = 19;
     static uint8_t spiMosi = 23;
     static uint8_t spiCs = 5;
-#elif FASTLED_ESP32_SPI_BUS == HSPI
+#elif CONFIG_FASTLED_ESP32_SPI_BUS == HSPI
     static uint8_t spiClk = 14;
     static uint8_t spiMiso = 12;
     static uint8_t spiMosi = 13;
@@ -100,14 +90,14 @@ public:
 
 	// select the SPI output (TODO: research whether this really means hi or lo.  Alt TODO: move select responsibility out of the SPI classes
 	// entirely, make it up to the caller to remember to lock/select the line?)
-	void select() { 
+	void select() {
 		ledSPI.beginTransaction(SPISettings(SPI_SPEED, MSBFIRST, SPI_MODE0));
-		if(m_pSelect != NULL) { m_pSelect->select(); } 
-	} 
+		if(m_pSelect != NULL) { m_pSelect->select(); }
+	}
 
 	// release the SPI line
-	void release() { 
-		if(m_pSelect != NULL) { m_pSelect->release(); } 
+	void release() {
+		if(m_pSelect != NULL) { m_pSelect->release(); }
 		ledSPI.endTransaction();
 	}
 
@@ -120,7 +110,7 @@ public:
 
 	static void writeBytesValueRaw(uint8_t value, int len) {
 		while(len--) {
-			ledSPI.transfer(value); 
+			ledSPI.transfer(value);
 		}
 	}
 
