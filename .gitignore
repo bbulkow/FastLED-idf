@@ -1,0 +1,14 @@
+### ESP-IDF ###
+build/
+sdkconfig
+sdkconfig.old
+
+### VisualStudioCode ###
+.vscode/*
+!.vscode/tasks.json
+!.vscode/launch.json
+*.code-workspace
+
+# Ignore all local history of files
+.history
+.ionide
