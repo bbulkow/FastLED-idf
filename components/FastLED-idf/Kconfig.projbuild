@@ -1,0 +1,9 @@
+menu "FastLED"
+
+    config FASTLED_ESP32_I2S
+        bool "Use I2S instead of RMT"
+        default y
+        help
+            Removes the RMT sources and uses RMT instead of I2S.
+
+endmenu

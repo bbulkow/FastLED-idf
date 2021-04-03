@@ -1,5 +1,4 @@
-
-
+#ifndef FASTLED_ESP32_I2S
 #define FASTLED_INTERNAL
 #include "FastLED.h"
 
@@ -11,7 +10,7 @@
 class ESP32RMTController;
 
 // -- Array of all controllers
-//    This array is filled at the time controllers are registered 
+//    This array is filled at the time controllers are registered
 //    (Usually when the sketch calls addLeds)
 static ESP32RMTController * gControllers[FASTLED_RMT_MAX_CONTROLLERS];
 
@@ -89,7 +88,7 @@ void IRAM_ATTR memorybuf_int( int i, char sep) {
     if ( maxbuf == 0 ) return;
 
     // for speed, just make sure I have 12 bytes, even though maybe I need fewer
-    // 12 is the number because I need a null which I will fill with sep, and 
+    // 12 is the number because I need a null which I will fill with sep, and
     // there's always the chance of a minus
     if (maxbuf <= 12) return;
 
@@ -204,9 +203,9 @@ static inline void fastled_set_mem_owner(rmt_channel_t channel, uint8_t owner)
 
 
 ESP32RMTController::ESP32RMTController(int DATA_PIN, int T1, int T2, int T3)
-    : mPixelData(0), 
-      mSize(0), 
-      mCur(0), 
+    : mPixelData(0),
+      mSize(0),
+      mCur(0),
       mWhichHalf(0),
       mBuffer(0),
       mBufferSize(0),
@@ -285,7 +284,7 @@ void ESP32RMTController::init()
         rmt_tx.gpio_num = gpio_num_t(0);  // The particular pin will be assigned later
 #endif
 
-        rmt_tx.mem_block_num = MEM_BLOCK_NUM; 
+        rmt_tx.mem_block_num = MEM_BLOCK_NUM;
         rmt_tx.clk_div = DIVIDER;
         rmt_tx.tx_config.loop_en = false;
         rmt_tx.tx_config.carrier_level = RMT_CARRIER_LEVEL_LOW;
@@ -298,7 +297,7 @@ void ESP32RMTController::init()
 
         if (FASTLED_RMT_BUILTIN_DRIVER) {
             ESP_ERROR_CHECK( rmt_driver_install(rmt_channel, 0, 0) );
-        } 
+        }
         else {
 
             // -- Set up the RMT to send 32 bits of the pulse buffer and then
@@ -390,7 +389,7 @@ void ESP32RMTController::showPixels()
 
 #if FASTLED_ESP32_SHOWTIMING == 1
         // the interrupts may have dumped things to the buffer. Print it.
-        // warning: this does a fairly large stack allocation. 
+        // warning: this does a fairly large stack allocation.
         char mb[MEMORYBUF_SIZE+1];
         int mb_len = MEMORYBUF_SIZE;
         memorybuf_get(mb, &mb_len);
@@ -479,12 +478,12 @@ void ESP32RMTController::tx_start()
 
 // In the case of the build-in driver, they specify the RMT channel
 // so we use the arg instead
-void ESP32RMTController::doneOnRMTChannel(rmt_channel_t channel, void * arg) 
+void ESP32RMTController::doneOnRMTChannel(rmt_channel_t channel, void * arg)
 {
     doneOnChannel((int) arg, (void *) 0);
 }
 
-// -- A controller is done 
+// -- A controller is done
 //    This function is called when a controller finishes writing
 //    its data. It is called either by the custom interrupt
 //    handler (below), or as a callback from the built-in
@@ -518,7 +517,7 @@ void ESP32RMTController::doneOnChannel(int channel, void * arg)
         }
     }
 }
-    
+
 // -- Custom interrupt handler
 //    This interrupt handler handles two cases: a controller is
 //    done writing its data, or a controller needs to fill the
@@ -588,7 +587,7 @@ bool IRAM_ATTR ESP32RMTController::timingOk() {
         memorybuf_add( g_bail_str );
 #endif /* FASTLED_ESP32_SHOWTIMING == 1 */
 
-        // how do we bail out? It seems if we simply call rmt_tx_stop, 
+        // how do we bail out? It seems if we simply call rmt_tx_stop,
         // we'll still flicker on the end. Setting mCur to mSize has the side effect
         // of triggering the other code that says "we're finished"
 
@@ -633,8 +632,8 @@ void IRAM_ATTR ESP32RMTController::fillNext()
 
         // set the owner to SW --- current driver does this but its not clear it matters
         fastled_set_mem_owner(mRMT_channel, RMT_MEM_OWNER_SW);
-            
-        // Shift bits out, MSB first, setting RMTMEM.chan[n].data32[x] to the 
+
+        // Shift bits out, MSB first, setting RMTMEM.chan[n].data32[x] to the
         // rmt_item32_t value corresponding to the buffered bit value
 
         for (int i=0; i < PULSES_PER_FILL / 32; i++) {
@@ -682,7 +681,7 @@ void IRAM_ATTR ESP32RMTController::fillNext()
 
 // -- Init pulse buffer
 //    Set up the buffer that will hold all of the pulse items for this
-//    controller. 
+//    controller.
 //    This function is only used when the built-in RMT driver is chosen
 void ESP32RMTController::initPulseBuffer(int size_in_bytes)
 {
@@ -714,4 +713,4 @@ void ESP32RMTController::convertByte(uint32_t byteval)
         mCurPulse++;
     }
 }
-
+#endif // FASTLED_ESP32_I2S
