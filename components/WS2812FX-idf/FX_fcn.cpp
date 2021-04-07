@@ -56,7 +56,7 @@ void WS2812FX::init( uint16_t countPixels, CRGB *leds, bool skipFirst)
   if (_skipFirstMode) {
     _lengthRaw += LED_SKIP_AMOUNT;
   }
-  
+
   _segments[0].start = 0;
   _segments[0].stop = _length;
 
@@ -131,10 +131,10 @@ uint16_t WS2812FX::realPixelIndex(uint16_t i) {
 
 void WS2812FX::setPixelColor(uint16_t i, uint8_t r, uint8_t g, uint8_t b)
 {
-  
+
   // create a color
   CRGB col(r, g, b);
-  
+
   uint16_t skip = _skipFirstMode ? LED_SKIP_AMOUNT : 0;
   if (SEGLEN) {//from segment
 
@@ -142,7 +142,7 @@ void WS2812FX::setPixelColor(uint16_t i, uint8_t r, uint8_t g, uint8_t b)
     if (IS_SEGMENT_ON)
     {
       // fixme: there's a specific multiply operator we should use
-      if (SEGMENT.opacity < 255) {  
+      if (SEGMENT.opacity < 255) {
         col.r = scale8(col.r, SEGMENT.opacity);
         col.g = scale8(col.g, SEGMENT.opacity);
         col.b = scale8(col.b, SEGMENT.opacity);
@@ -201,13 +201,13 @@ void WS2812FX::setPixelColor(uint16_t i, uint8_t r, uint8_t g, uint8_t b)
 //Stay safe with high amperage and have a reasonable safety margin!
 //I am NOT to be held liable for burned down garages!
 
-//fine tune power estimation constants for your setup                  
+//fine tune power estimation constants for your setup
 #define MA_FOR_ESP        100 //how much mA does the ESP use (Wemos D1 about 80mA, ESP32 about 120mA)
                               //you can set it to 0 if the ESP is powered by USB and the LEDs by external
 
 void WS2812FX::show(void) {
   if (_callback) _callback();
-  
+
   //power limit calculation
   //each LED can draw up 195075 "power units" (approx. 53mA)
   //one PU is the power it takes to have 1 channel 1 step brighter per brightness step
@@ -243,7 +243,7 @@ void WS2812FX::show(void) {
         // ignore white component on WS2815 power calculation
         powerSum += (MAX(MAX(c.r,c.g),c.b)) * 3;
       }
-      else 
+      else
       {
         powerSum += (c.r + c.g + c.b) ;
       }
@@ -252,7 +252,7 @@ void WS2812FX::show(void) {
 
     uint32_t powerSum0 = powerSum;
     powerSum *= _brightness;
-    
+
     if (powerSum > powerBudget) //scale brightness down to stay in current limit
     {
       float scale = (float)powerBudget / (float)powerSum;
@@ -272,7 +272,7 @@ void WS2812FX::show(void) {
     currentMilliamps = 0;
     FastLED.setBrightness(_brightness);
   }
-  
+
   FastLED.show();
   _lastShow = millis();
 }
@@ -283,10 +283,10 @@ void WS2812FX::trigger() {
 
 void WS2812FX::setMode(uint8_t segid, uint8_t m) {
   if (segid >= MAX_NUM_SEGMENTS) return;
-   
+
   if (m >= MODE_COUNT) m = MODE_COUNT - 1;
 
-  if (_segments[segid].mode != m) 
+  if (_segments[segid].mode != m)
   {
     _segment_runtimes[segid].reset();
     _segments[segid].mode = m;
@@ -309,13 +309,13 @@ uint8_t WS2812FX::getPaletteCount()
 bool WS2812FX::setEffectConfig(uint8_t m, uint8_t s, uint8_t in, uint8_t p) {
 
   uint8_t mainSeg = getMainSegmentId();
-  Segment& seg = _segments[getMainSegmentId()];
+  Segment& seg = _segments[mainSeg];
   uint8_t modePrev = seg.mode, speedPrev = seg.speed, intensityPrev = seg.intensity, palettePrev = seg.palette;
 
   bool applied = false;
-  
+
   // compile defined as true in FX.h
-  if (applyToAllSelected) 
+  if (applyToAllSelected)
   {
     for (uint8_t i = 0; i < MAX_NUM_SEGMENTS; i++)
     {
@@ -328,8 +328,8 @@ bool WS2812FX::setEffectConfig(uint8_t m, uint8_t s, uint8_t in, uint8_t p) {
         applied = true;
       }
     }
-  } 
-  
+  }
+
   // compiler is claiming this could never be true. Not suer why so leaving the warning
   if ( (!applyToAllSelected) || (!applied) ) {
     seg.speed = s;
@@ -337,14 +337,14 @@ bool WS2812FX::setEffectConfig(uint8_t m, uint8_t s, uint8_t in, uint8_t p) {
     seg.palette = p;
     setMode(mainSegment, m);
   }
-  
+
   // anything changed?
-  if (seg.mode != modePrev || 
-  	  seg.speed != speedPrev || 
-  	  seg.intensity != intensityPrev || 
-  	  seg.palette != palettePrev) 
+  if (seg.mode != modePrev ||
+  	  seg.speed != speedPrev ||
+  	  seg.intensity != intensityPrev ||
+  	  seg.palette != palettePrev)
   	return true;
-  
+
   return false;
 }
 
@@ -356,7 +356,7 @@ void WS2812FX::setColor(uint8_t slot, uint32_t c) {
   if (slot >= NUM_COLORS) return;
 
   bool applied = false;
-  
+
   if (applyToAllSelected) {
     for (uint8_t i = 0; i < MAX_NUM_SEGMENTS; i++)
     {
@@ -428,13 +428,13 @@ uint32_t WS2812FX::getColor(void) {
 uint32_t WS2812FX::getPixelColor(uint16_t i)
 {
   i = realPixelIndex(i);
-  
+
   #ifdef WLED_CUSTOM_LED_MAPPING
   if (i < customMappingSize) i = customMappingTable[i];
   #endif
 
   if (_skipFirstMode) i += LED_SKIP_AMOUNT;
-  
+
   if (i >= _lengthRaw) return 0;
 
   return( (_leds[i].r << 24) | (_leds[i].g << 16) | _leds[i].b );
@@ -474,7 +474,7 @@ void WS2812FX::setSegment(uint8_t n, uint16_t i1, uint16_t i2, uint8_t grouping,
   if (seg.stop) setRange(seg.start, seg.stop -1, 0); //turn old segment range off
   if (i2 <= i1) //disable segment
   {
-    seg.stop = 0; 
+    seg.stop = 0;
     if (n == mainSegment) //if main segment is deleted, set first active as main segment
     {
       for (uint8_t i = 0; i < MAX_NUM_SEGMENTS; i++)
@@ -762,7 +762,7 @@ void WS2812FX::handle_palette(void)
     }
   }
   if (SEGMENT.mode >= FX_MODE_METEOR && paletteIndex == 0) paletteIndex = 4;
-  
+
   switch (paletteIndex)
   {
     case 0: //default palette. Exceptions for specific effects above
@@ -820,7 +820,7 @@ void WS2812FX::handle_palette(void)
     default: //progmem palettes
       load_gradient_palette(paletteIndex -13);
   }
-  
+
   if (singleSegmentMode && paletteFade) //only blend if just one segment uses FastLED mode
   {
     nblendPaletteTowardPalette(currentPalette, targetPalette, 48);
