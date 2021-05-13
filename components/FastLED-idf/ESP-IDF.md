@@ -25,6 +25,8 @@ have re-tooled to that interface instead of writing directly to hardware address
 
 I prefer running my code -O3 optimized. I haven't changed any of the stack depths.
 
+Ensure that Dynamic Frequency Scaling is turned off.
+
 # Differences
 
 This code defaults to using two memory buffers instead of 1. There are tradeoffs, and you can change the values. See below.
