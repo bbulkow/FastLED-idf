@@ -40,6 +40,8 @@
 //Source: https://github.com/pcbreflux/espressif/blob/master/esp32/arduino/sketchbook/ESP32_int_temp_sensor/ESP32_int_temp_sensor.ino
 uint8_t temprature_sens_read();
 
+#define DEFINED_IN_MPID_ESP32
+#ifndef DEFINED_IN_MPID_ESP32
 float temperatureRead()
 {
     return (temprature_sens_read() - 32) / 1.8;
@@ -51,6 +53,7 @@ void __yield()
 }
 
 void yield() __attribute__ ((weak, alias("__yield")));
+#endif
 
 #if 0
 
@@ -136,6 +139,7 @@ BaseType_t xTaskCreateUniversal( TaskFunction_t pxTaskCode,
 
 #endif // test, don't think these are needed
 
+#ifndef DEFINED_IN_MPID_ESP32
 unsigned long IRAM_ATTR micros()
 {
     return (unsigned long) (esp_timer_get_time());
@@ -160,5 +164,5 @@ void IRAM_ATTR delayMicroseconds(uint32_t us)
         } while ((esp_timer_get_time() - now) < us);
     }
 }
-
+#endif
 
