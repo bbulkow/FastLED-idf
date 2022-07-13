@@ -40,7 +40,7 @@
 //Source: https://github.com/pcbreflux/espressif/blob/master/esp32/arduino/sketchbook/ESP32_int_temp_sensor/ESP32_int_temp_sensor.ino
 uint8_t temprature_sens_read();
 
-#define DEFINED_IN_MPID_ESP32
+//#define DEFINED_IN_MPID_ESP32
 #ifndef DEFINED_IN_MPID_ESP32
 float temperatureRead()
 {
